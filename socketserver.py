@@ -26,6 +26,7 @@ class TCPIPserver():
             if not data: 
                 break
             full_message += data
+        socket_in.sendall("yes".encode("utf-8"))
         socket_in.close()
         self.output_refreshed = True
         result = full_message.decode(encoding = encoding)
