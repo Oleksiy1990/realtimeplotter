@@ -12,12 +12,26 @@ q = 0
 
 
 
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect((HOST, PORT))
+#my_information = "listdata errorbar_no {:.03f} {:.03f} {:.03f}".format(q,q/5,q/10)
+my_information = "config; clear_data all"
+message = my_information.encode("utf-8",errors="ignore")
+sendres = s.sendall(message)
+#message = my_information2.encode("utf-8",errors="ignore")
+#sendres = s.sendall(message)
+s.close()
+
 while True:
-    val = ranf()*10
+    val = ranf()*30
+    val_random_error = ranf()*0.5
+    val_random_errorbar = ranf()*0.5
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((HOST, PORT))
     #my_information = "listdata errorbar_no {:.03f} {:.03f} {:.03f}".format(q,q/5,q/10)
-    my_information = "listdata errorbar_yes {:.03f} {:.03f} {:.03f}".format(val,np.sin(val),val/10)
+    #my_information = "listdata errorbar_yes {:.03f} {:.03f} {:.03f}".format(val,np.sin(val),val/10)
+    my_information = "listdata errorbar_yes {:.03f} {:.03f} {:.03f}".format(val,np.sin(val)+val_random_error,val_random_errorbar)
     #my_information = "listdata errorbar_no {:.03f} {:.03f} {:.03f} {:.03f}".format(val,np.sin(val),val/10,np.log(val))
     
     #my_information2 = "What's up here?"

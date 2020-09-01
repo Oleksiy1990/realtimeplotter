@@ -12,6 +12,189 @@ import pyqtgraph as pg
 import mathfunctions.fitmodels as mdl
 import scipy.optimize as sopt
 
+
+class GeneralFitter1D:
+    def __init__(self,xvals=None,yvals=None,errorbars=None):
+        """
+        All inputs must be either 1D lists or 1D numpy arrays, not anything else. errorbars must be either 1D list or 1D numpy array, or left as none, in which case it will simply be initialized to an array filled with all 1. 
+        the __init__ function checks that all inputs are as specified, and returns None if there is any error involved
+        """
+        
+        self.okToFit = False
+        
+        if errorbars is not None: 
+            if not isinstance(errorbars,list) or isinstance(errorbars,np.ndarray):
+                print("Message from class {:s}: errorbars, if given, must be either a list or a numpy array. Initialize it again with the correct input.".format(self.__class__.__name__))
+                return None
+
+        if isinstance(xvals,list):
+            self.xvals = np.array(xvals)
+        elif isinstance(xvals,np.ndarray):
+            self.xvals = xvals
+        else:
+            print("Message from class {:s}: xvals must be either a list or a numpy. Initialize it again with the correct input.".format(self.__class__.__name__))
+            return None
+        if isinstance(yvals,list):
+            self.yvals = np.array(yvals)
+        elif isinstance(yvals,np.ndarray):
+            self.yvals = yvals
+        else:
+            print("Message from class {:s}: yvals must be either a list or a numpy. Initialize it again with the correct input.".format(self.__class__.__name__))
+            return None
+
+        if (len(self.xvals.shape) != 1) or (len(self.yvals.shape) != 1):
+            print("Message from class {:s} both xvals and yvals arrays must be 1D. Initialize it again with the correct input".format(self.__class__.__name__))
+            return None
+        
+        if (self.xvals.shape[0] != self.yvals.shape[0]):
+            print("Message from class {:s}: length of the xvals and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
+            return None
+        
+        if errorbars is None:
+            self.errorbars = np.ones(self.xvals.shape,dtype=float)
+        elif isinstance(errorbars,list):
+            self.errorbars = np.array(errorbars)
+        elif isinstance(errorbars,np.ndarray):
+            self.errorbars = errorbars
+        else:
+            print("Message from class {:s}: errorbars must be either a list or a numpy, or do not input anything. Initialize it again with the correct input.".format(self.__class__.__name__))
+            return None
+
+        if (self.errorbars.shape[0] != self.xvals.shape[0]):
+            print("Message from class {:s}: length of the xvals and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
+            return None
+        self.okToFit = True
+
+    def cropData(self,cropping_bounds = None):
+        if not self.okToFit:
+            print("Warning message from Class {:s} function cropData: okToFit parameter is False. Something was wrong with the data you provided, check previous error messages. Not cropping".format(self.__class__.__name__))
+            return None
+        if cropping_bounds is None:
+            print("Warning message from Class {:s} function cropData: you did not provide cropping bounds. Function cannot be applied".format(self.__class__.__name__))
+            return None
+        if isinstance(cropping_bounds,list):
+            cropping_bounds_numpy = np.array(cropping_bounds)
+        elif isinstance(cropping_bounds,np.ndarray):
+            cropping_bounds_numpy = cropping_bounds
+        else: 
+            print("Message from class {:s} function cropData: croppings bounds must be either a list or a 1D numpy array. Not cropping")
+            return None
+        if (len(cropping_bounds_numpy.shape) != 1) or (cropping_bounds_numpy.shape[0] != 2):
+            print("Message from class {:s} function cropData: croppings bounds must a 1D list or array of length = 2. Not cropping")
+            return None
+
+        # The cropping procedure itself
+        self.xvals = self.xvals[self.xvals > cropping_bounds_numpy[0]]
+        self.xvals = self.xvals[self.xvals < cropping_bounds_numpy[1]]
+        self.yvals = self.yvals[self.xvals > cropping_bounds_numpy[0]]
+        self.yvals = self.yvals[self.xvals < cropping_bounds_numpy[1]]
+        self.errorbars = self.errorbars[self.xvals > cropping_bounds_numpy[0]]
+        self.errorbars = self.errorbars[self.xvals < cropping_bounds_numpy[1]]
+
+    def setupFit(self,**kwargs):
+        """
+        Here we establish and (ideally) check all the options to be sent to the fitting method. We give all those options as keyword arguments.
+        """
+        errorExists = False
+        #kwargs_list = ["fitfunction","fitroutine","fitmethod"]
+        kwargs_list = []
+        function_name = None
+        self.isSetupFitSuccessful = False
+
+
+        key = "fitfunction" # this is just the mathematical function that has to be fitted
+        if key in kwargs:
+            kwargs_list.append(key)
+            if kwargs[key] in ["sine","sinewave","sinusoidal"]:
+                function_name = "sinewave"
+            elif kwargs[key] in ["damped_sine","decay_sine","damped_sinusoidal"]:
+                function_name = "damped_sinewave"
+            else: 
+                print("Error: incorrect value for {:s} in setupFit. Fitting impossible".format(key))
+                errorExists = True
+                return False
+        else:
+            print("Argument {:s} is not given in setupFit. Fitting impossible".format(key))
+            errorExists = True
+            return False
+
+        key = "initialparams" # this must be a list in the correct form 
+        self.initialparams = None
+        if key in kwargs:
+            kwargs_list.append(key)
+            check_func = getattr(mdl,function_name + "_check")
+            try:
+                check_init_param = check_func(kwargs[key])
+                if check_init_param:
+                    self.initialparams = kwargs[key]
+            except TypeError:
+                print("Warning from setupFit: Initial parameters to fit function {:s} are not a list. Ignoring initial parameters".format(function_name))
+        if self.initialparams is None:
+            print("Note from setupFit: no initial parameters given, using prefit to automatically generate initial parameters")
+            init_param_generator = getattr(mdl,function_name+"_prefit")
+            self.initialparams = init_param_generator(self.xvals,self.yvals,self.errorbars)
+
+        key = "fitroutine" # This could be least squares, or things like differential evolution, etc.
+        if key in kwargs:
+            kwargs_list.append(key)
+            if kwargs[key] in ["least_squares","leastsq","lsq"]:
+                self.optimizer = sopt.least_squares
+            else:
+                print("Error: incorrect value for {:s} in setupFit. Fitting impossible".format(key))
+                errorExists = True
+                return False
+        else:
+            print("Argument {:s} is not given in setupFit. Assume that the fit routine is scipy.optimize.least_squares".format(key))
+            self.optimizer = sopt.least_squares
+
+        key = "fitmethod"
+        if key in kwargs:
+            kwargs_list.append(key)
+            if kwargs[key] in ["lm","levenberg_marquardt"]:
+                self.optimizer_method = "lm" # see scipy.optimize.least_squares
+            elif kwargs[key] in ["trf"]:
+                self.optimizer_method = "trf"
+      
+            
+
+
+        for key in list(kwargs.keys()):
+            if key not in kwargs_list:
+                print("Warning: wrong keyword argument {:s} given in setupFit. Ignoring it".format(key))
+        
+        print("Keys into setupFit: \n", kwargs_list)
+        if errorExists:
+            return False
+        else:
+            self.isSetupFitSuccessful = True
+            return True
+
+    def doFit(self):
+        if not self.okToFit:
+            print("Message from Class {:s} function doFit: okToFit is false. No fitting".format(self.__class__.__name__))
+            return None
+        if not self.isSetupFitSuccessful:
+            print("Message from Class {:s} function doFit: function setupFit in the same class was not successful. Fitting impossible".format(self.__class__.__name__))
+            return None
+        if (self.initialparams is not None) and self.doErrorbarsExist:
+            optimization_output = self.optimizer(self.fitfunction,self.initialparams,
+                    args = (self.independent_variable,self.dependent_variables[0],self.error_bars[0]),loss="linear",f_scale=1) 
+            self.optimizationResults.append(optimization_output)
+            return optimization_output
+        elif (self.initialparams is not None) and (self.doErrorbarsExist is False):
+            optimization_output = self.optimizer(self.fitfunction,self.initialparams,
+                    args = (self.independent_variable,self.dependent_variables[0]),loss="linear",f_scale=1) 
+            self.optimizationResults.append(optimization_output)
+            return optimization_output
+
+        else:
+            print("No initial parameters given, no fitting now")
+            pass
+    
+    def __del__(self):
+        print("Closing {:s} class instance".format(self.__class__.__name__))
+
+
 class PhononFitter:
     """
     Define so that it makes a single fit, one data set

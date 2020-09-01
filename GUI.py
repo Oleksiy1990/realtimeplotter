@@ -17,6 +17,7 @@ import numpy as np
 from functools import partial
 from socketserver import TCPIPserver
 from interpreter import message_interpreter as mi
+from fitterclass import GeneralFitter1D
 
 pg.setConfigOptions(crashWarning=True)
 
@@ -116,7 +117,8 @@ class MainWindow(QtGui.QMainWindow):
         self.errorbar_item_name = "errorbar_item"
         self.pen_name = "pen"
         self.errorbar_pen_name = "errpen"
-
+        
+        self.num_datasets = 0
         self.arePlotsCleared = True
 
         super().__init__()
@@ -126,27 +128,35 @@ class MainWindow(QtGui.QMainWindow):
         self.graphWidget.setBackground('w')
         mwlayout.addWidget(self.graphWidget)
 
-        ClearPlotButton = QtGui.QPushButton("Clear plot")
-        ClearDataButton = QtGui.QPushButton("Clear data")
+        #Clear plot and clear data buttons
+        self.ClearPlotButton = QtGui.QPushButton("Clear plot")
+        self.ClearDataButton = QtGui.QPushButton("Clear data")
         ClearPlotAndDataBox = QtGui.QHBoxLayout()
-        ClearPlotAndDataBox.addWidget(ClearPlotButton)
-        ClearPlotAndDataBox.addWidget(ClearDataButton)
+        ClearPlotAndDataBox.addWidget(self.ClearPlotButton)
+        ClearPlotAndDataBox.addWidget(self.ClearDataButton)
         mwlayout.addLayout(ClearPlotAndDataBox)
         
-        ClearPlotButton.clicked.connect(partial(self.clear_plot,""))
-        ClearDataButton.clicked.connect(partial(self.clear_data,"all"))
-        
+        self.ClearPlotButton.clicked.connect(partial(self.clear_plot,""))
+        self.ClearDataButton.clicked.connect(partial(self.clear_data,"all"))
+       
+        # Make fit buttons
+        self.MakeFitButton = QtGui.QPushButton("Do fit")
+        self.ComboBoxFits = QtGui.QComboBox()
+        self.ComboBoxPlotNumbers = QtGui.QComboBox()
+        self.ComboBoxFits.addItems(["None","sinewave","damped_sine"])
+        for idx in range(self.num_datasets):
+            self.ComboBoxPlotNumbers.addItems(f"{idx}")
+        MakeFitBoxLayout = QtGui.QHBoxLayout()
+        MakeFitBoxLayout.addWidget(self.MakeFitButton)
+        MakeFitBoxLayout.addWidget(self.ComboBoxFits)
+        MakeFitBoxLayout.addWidget(self.ComboBoxPlotNumbers)
+        mwlayout.addLayout(MakeFitBoxLayout)
+
+        self.MakeFitButton.clicked.connect(self.process_MakeFit_button)
 
         self.x = []
-        #self.y = []
-        #self.x = list(range(100))  # 100 time points
-        #self.y1 = [np.sin(q/10) for q in self.x]  # 100 data points
-        #self.y2 = [np.sin(q/5) for q in self.x]
 
         pen = pg.mkPen(color=(255, 0, 0))
-        #self.data_line1 =  self.graphWidget.plot(self.x, self.y1,pen=pen, symbol="o") # This returns apparently a PlotDataItem
-        #self.data_line2 =  self.graphWidget.plot(self.x, self.y2,pen=pen, symbol="o") # This returns apparently a PlotDataItem
-        #self.data_line1.sigClicked.connect(partial(self.buttonHandler,"gparh clicked"))
         mainwidget = QtWidgets.QWidget()
         mainwidget.setLayout(mwlayout)
         #self.setGeometry(50,50,700,700)
@@ -158,6 +168,7 @@ class MainWindow(QtGui.QMainWindow):
         #self.timer.setInterval(50)
         #self.timer.timeout.connect(self.update_plot_data)
         #self.timer.start()
+
       
         self.threadpool = QtCore.QThreadPool()
         self.threadpool.setMaxThreadCount(maxthreads_threadpool)
@@ -176,6 +187,13 @@ class MainWindow(QtGui.QMainWindow):
     
     def nofunction(self,verbatim_message):
         print("Function interpreter.message_interpreter could not determine which function to call based on analyzing the transmitted message. Not calling any function. Here is the message that you transmitted (verbatim): {} \n".format(verbatim_message))
+
+    def process_MakeFit_button(self):
+        if self.ComboBoxFits == "None":
+            return None
+        else:
+            print(type(self.ComboBoxFits.currentText()))
+
 
     def showdata(self,data):
         print(data)
@@ -227,6 +245,8 @@ class MainWindow(QtGui.QMainWindow):
                         getattr(self,self.yaxis_name+f"{idx}"))
                 getattr(self,self.plot_line_name+f"{idx}").setData(*arrays_toplot)
 
+            self.num_datasets = len(dependent_vars)
+
 
         if len(datapoint) == 3:
             (independent_var,dependent_vars,errorbar_vars) = datapoint
@@ -265,6 +285,9 @@ class MainWindow(QtGui.QMainWindow):
                 self.graphWidget.addItem(getattr(self,self.errorbar_item_name+f"{idx}"))
                 getattr(self,self.plot_line_name+f"{idx}").setData(*arrays_toplot[0:2])
 
+            self.num_datasets = len(dependent_vars)
+
+
     def clear_plot(self,dummyargument):
         """
         This only clear the visual from the plot, it doesn't clear the saved data
@@ -285,6 +308,8 @@ class MainWindow(QtGui.QMainWindow):
                 else:
                     break
             self.clear_plot("")
+            self.num_datasets = 0
+            self.ComboBoxPlotNumbers.clear()
             return None
         else:
             try:
@@ -298,6 +323,7 @@ class MainWindow(QtGui.QMainWindow):
                 if hasattr(self,self.err_name+f"{curve_to_delete}"):
                     setattr(self,self.err_name+f"{curve_to_delete}",[])
                     self.graphWidget.removeItem(getattr(self,self.err_name+f"{curve_to_delete}"))
+                self.num_datasets -= 1
             except:
                 print(f"Error message from Class {self.__class__.__name__} function clear_data: you put an invalid argument. Not clearing any data")
             return None
