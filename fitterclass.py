@@ -61,9 +61,12 @@ class GeneralFitter1D:
             return None
 
         if (self.errorbars.shape[0] != self.xvals.shape[0]):
-            print("Message from class {:s}: length of the xvals and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
+            print("Message from class {:s}: length of the errorbars and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
             return None
         self.okToFit = True
+
+
+        #NOTE! self.xvals is not sorted in this case!
 
     def cropData(self,cropping_bounds = None):
         if not self.okToFit:
@@ -117,22 +120,30 @@ class GeneralFitter1D:
             print("Argument {:s} is not given in setupFit. Fitting impossible".format(key))
             errorExists = True
             return False
+        self.fitfunction = getattr(mdl,function_name+"_e")
+        self.fitfunctionBase = getattr(mdl,function_name+"_base")
+        
 
         key = "initialparams" # this must be a list in the correct form 
         self.initialparams = None
+        init_param_generator = getattr(mdl,function_name+"_prefit")
+        init_param_generator_result = init_param_generator(self.xvals,self.yvals,self.errorbars)
         if key in kwargs:
             kwargs_list.append(key)
             check_func = getattr(mdl,function_name + "_check")
             try:
                 check_init_param = check_func(kwargs[key])
                 if check_init_param:
-                    self.initialparams = kwargs[key]
+                    self.initialparams = np.array(kwargs[key])
+                    self.params_bounds = np.array(init_param_generator_result[1])
             except TypeError:
-                print("Warning from setupFit: Initial parameters to fit function {:s} are not a list. Ignoring initial parameters".format(function_name))
+                print("Warning from setupFit: Initial parameters to fit function {:s} are not a list. Ignoring given initial parameters and using automatically generated ones".format(function_name))
+                self.initialparams = np.array(init_param_generator_result[0])
+                self.params_bounds = np.array(init_param_generator_result[1])
         if self.initialparams is None:
             print("Note from setupFit: no initial parameters given, using prefit to automatically generate initial parameters")
-            init_param_generator = getattr(mdl,function_name+"_prefit")
-            self.initialparams = init_param_generator(self.xvals,self.yvals,self.errorbars)
+            self.initialparams = np.array(init_param_generator_result[0])
+            self.params_bounds = np.array(init_param_generator_result[1])
 
         key = "fitroutine" # This could be least squares, or things like differential evolution, etc.
         if key in kwargs:
@@ -176,20 +187,20 @@ class GeneralFitter1D:
         if not self.isSetupFitSuccessful:
             print("Message from Class {:s} function doFit: function setupFit in the same class was not successful. Fitting impossible".format(self.__class__.__name__))
             return None
-        if (self.initialparams is not None) and self.doErrorbarsExist:
-            optimization_output = self.optimizer(self.fitfunction,self.initialparams,
-                    args = (self.independent_variable,self.dependent_variables[0],self.error_bars[0]),loss="linear",f_scale=1) 
-            self.optimizationResults.append(optimization_output)
-            return optimization_output
-        elif (self.initialparams is not None) and (self.doErrorbarsExist is False):
-            optimization_output = self.optimizer(self.fitfunction,self.initialparams,
-                    args = (self.independent_variable,self.dependent_variables[0]),loss="linear",f_scale=1) 
-            self.optimizationResults.append(optimization_output)
-            return optimization_output
+        optimization_output = self.optimizer(self.fitfunction,self.initialparams,
+                args = (self.xvals,self.yvals,self.errorbars),
+                bounds=(self.params_bounds[:,0],self.params_bounds[:,1]),
+                loss="linear",f_scale=1) 
+        self.optimizationResult = optimization_output
+        return optimization_output
+   
 
-        else:
-            print("No initial parameters given, no fitting now")
-            pass
+    def plotFit(self,pyqtgraph_plotwidget,linestyle = "--"):
+        aXvalsDense = np.linspace(np.min(self.xvals),np.max(self.xvals),350)
+        print("from plotFit: x[0] :",aXvalsDense[0])
+        print("from plotFit: x[-1] :",aXvalsDense[-1])
+        pyqtgraph_plotwidget.plot(aXvalsDense,self.fitfunctionBase(self.optimizationResult.x,aXvalsDense),pen="k")
+
     
     def __del__(self):
         print("Closing {:s} class instance".format(self.__class__.__name__))

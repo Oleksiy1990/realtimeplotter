@@ -42,7 +42,7 @@ while True:
     #print("Sending message output : ",sendres)
     s.close()
     q += 1
-    time.sleep(0.1)
+    time.sleep(0.01)
     
     if q > 50:
         break

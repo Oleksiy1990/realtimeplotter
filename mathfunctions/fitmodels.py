@@ -36,12 +36,19 @@ def sinewave_prefit(independent_var,measured_data,errorbars,low_pts=5,high_pts=5
     low_est = np.mean(np.partition(measured_data,low_pts)[0:low_pts])
     high_est = -1*np.mean(np.partition(-1*measured_data,high_pts)[0:high_pts])
     amplitude_est = 0.5*(high_est-low_est)
+    amplitude_bounds_est = [0,2*amplitude_est]
     vertical_offset_est = low_est+amplitude_est
+    vertical_offset_bounds_est = [low_est,high_est]
     phase_est = 1e-5 #this is just effectively 0
-    frequency_est = num_periods/(independent_var[-1]-independent_var[0])
-    
+    phase_bounds_est = [0,np.pi]
+    frequency_est = num_periods/(np.max(independent_var)-np.min(independent_var))
+    frequency_bounds_est = [0.5/(np.max(independent_var)-np.min(independent_var)),
+                            0.5*len(independent_var)/(np.max(independent_var)-np.min(independent_var))]
     fitparams_est = [frequency_est,amplitude_est,phase_est,vertical_offset_est]
-    return fitparams_est
+    fitparams_bounds_est = [frequency_bounds_est,amplitude_bounds_est,phase_bounds_est,vertical_offset_bounds_est]
+    
+    return [fitparams_est,fitparams_bounds_est]
+    # NOTE! this is not yet implemented for other fit functions
 
 def damped_sinewave(fitparams,independent_var,measured_data):
     """

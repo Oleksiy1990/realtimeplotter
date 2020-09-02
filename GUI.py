@@ -106,22 +106,24 @@ class Worker(QtCore.QRunnable):
 class MainWindow(QtGui.QMainWindow):
 
     def __init__(self, aTCPIPserver):
+        super().__init__()
+
+
         maxthreads_threadpool = 5
 
         self.colorpalette = [(255,0,0),(0,255,0),(0,0,255),(255,255,0),(0,255,255),
                 (255,0,255),(128,128,128),(128,0,0),(128,128,0),(0,128,0),(128,0,128),
                 (0,128,128),(0,0,128)]
         self.yaxis_name = "y"
-        self.err_name = "err"
+        self.err_name = "err" # This is the name of the attribute which saves the values of the errorbars
         self.plot_line_name = "data_line"
-        self.errorbar_item_name = "errorbar_item"
+        self.errorbar_item_name = "errorbar_item" # this is purely for plotting errorbars, pyqtgraph stuff
         self.pen_name = "pen"
         self.errorbar_pen_name = "errpen"
         
         self.num_datasets = 0
         self.arePlotsCleared = True
 
-        super().__init__()
         mwlayout = QtWidgets.QVBoxLayout()
         #aTCPIPserver.listener_function() # Do not just call it, this must be in a Qt Thread, otherwise it blocks due to the while True statement in it 
         self.graphWidget = pg.PlotWidget()
@@ -141,17 +143,19 @@ class MainWindow(QtGui.QMainWindow):
        
         # Make fit buttons
         self.MakeFitButton = QtGui.QPushButton("Do fit")
+        self.RegisterCurvesButton = QtGui.QPushButton("Reg. cv.")
         self.ComboBoxFits = QtGui.QComboBox()
         self.ComboBoxPlotNumbers = QtGui.QComboBox()
         self.ComboBoxFits.addItems(["None","sinewave","damped_sine"])
-        for idx in range(self.num_datasets):
-            self.ComboBoxPlotNumbers.addItems(f"{idx}")
+        # self.ComboBoxPlotNumbers.addItems should be called in the code in order to create a choice which plot to fit 
         MakeFitBoxLayout = QtGui.QHBoxLayout()
         MakeFitBoxLayout.addWidget(self.MakeFitButton)
+        MakeFitBoxLayout.addWidget(self.RegisterCurvesButton)
         MakeFitBoxLayout.addWidget(self.ComboBoxFits)
         MakeFitBoxLayout.addWidget(self.ComboBoxPlotNumbers)
         mwlayout.addLayout(MakeFitBoxLayout)
 
+        self.RegisterCurvesButton.clicked.connect(self.register_available_curves)
         self.MakeFitButton.clicked.connect(self.process_MakeFit_button)
 
         self.x = []
@@ -187,12 +191,46 @@ class MainWindow(QtGui.QMainWindow):
     
     def nofunction(self,verbatim_message):
         print("Function interpreter.message_interpreter could not determine which function to call based on analyzing the transmitted message. Not calling any function. Here is the message that you transmitted (verbatim): {} \n".format(verbatim_message))
+    
+    def register_available_curves(self):
+        for idx in range(self.num_datasets):
+            self.ComboBoxPlotNumbers.addItem(f"{idx}")        
 
     def process_MakeFit_button(self):
-        if self.ComboBoxFits == "None":
+        if self.ComboBoxFits.currentText() == "None":
+            print("Chosen fit is None. Not doing any fits")
             return None
         else:
-            print(type(self.ComboBoxFits.currentText()))
+            try:
+                fitCurveNumber = int(self.ComboBoxPlotNumbers.currentText())
+            except:
+                print("Message from class {:s} function process_MakeFit_button: fitCurveNumber is undefined. It's not clear which curve to fit. Not fitting anything.".format(self.__class__.__name__))
+                return None
+            if not hasattr(self,self.yaxis_name+f"{fitCurveNumber}"):
+                print("Message from class {:s}: the curve number that you are trying to fit does not exist. Not doing any fit".format(self.__class__.__name__))
+                return None
+            if len(getattr(self,self.yaxis_name+f"{fitCurveNumber}")) == 0:
+                print("Message from class {:s}: the curve number that you are trying to fit probably got deleted before. Not doing any fit".format(self.__class__.__name__))
+                return None
+
+            aXvals = self.x
+            aYvals = getattr(self,self.yaxis_name+f"{fitCurveNumber}")
+            if hasattr(self,self.err_name+f"{fitCurveNumber}"):
+                if len(getattr(self,self.err_name+f"{fitCurveNumber}")) > 0:
+                    aErrorBars = getattr(self,self.err_name+f"{fitCurveNumber}")
+                else:
+                    aErrorBars = None
+            else:
+                aErrorBars = None
+
+            aFitter = GeneralFitter1D(xvals = aXvals, yvals = aYvals, errorbars = aErrorBars)
+            aFitter.setupFit(fitfunction = self.ComboBoxFits.currentText())
+            fitres = aFitter.doFit()
+            if fitres.success is True:
+                aFitter.plotFit(self.graphWidget)
+            else:
+                print("Message from Class {:s} function process_MakeFit_button: Fit is not successful, not plotting anything".format(self.__class__.__name__))
+            print(fitres)
 
 
     def showdata(self,data):
@@ -294,6 +332,7 @@ class MainWindow(QtGui.QMainWindow):
         """
         self.graphWidget.clear()
         self.arePlotsCleared = True
+
     def clear_data(self,data_line_name_string):
         if data_line_name_string == "all":
             self.x = []
