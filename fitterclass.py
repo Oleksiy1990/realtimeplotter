@@ -11,6 +11,8 @@ import os
 import pyqtgraph as pg
 import mathfunctions.fitmodels as mdl
 import scipy.optimize as sopt
+from PyQt5 import QtWidgets 
+from PyQt5 import QtGui, QtCore
 
 
 class GeneralFitter1D:
@@ -205,7 +207,102 @@ class GeneralFitter1D:
     def __del__(self):
         print("Closing {:s} class instance".format(self.__class__.__name__))
 
+class PrefitterDialog(QtWidgets.QWidget):
+    def __init__(self,fitmodel,fitcurvenumber,fitparamdict,
+            xvals=None,yvals=None,
+            errorbars=None):
+        if not isinstance(fitmodel,str):
+            print("Message from Class {:s}: you must provide a fit model name as a string. Not doing anything".format(self.__class__.__name__))
+            return None
+        super().__init__()
+        self.fitmodel_string = fitmodel
+        self.fitcurvenumber = fitcurvenumber
+        self.fitparamdict = fitparamdict
+        self.numpoints_curve = 350
+        # We make sure that the x-axis is sorted here
+        sort_idx_x = np.argsort(xvals)
+        self.xvals = np.array(xvals)[sort_idx_x] 
+        self.yvals = np.array(yvals)[sort_idx_x]
+        if errorbars is not None:
+            self.errorbars = np.array(errorbars)[sort_idx_x]
+        else:
+            self.errorbars = None
+        
+        self.__dotsymbol = "o"
+        self.__plotcolorchoice = (255,0,0) # this just means red in RGB scheme
+        self.__symbolbrush = pg.mkBrush(self.__plotcolorchoice)
 
+
+        self.setWindowTitle("Pre-fit dialog")
+        dialoglayout = QtWidgets.QVBoxLayout()
+        self.graphWidget1 = pg.PlotWidget()
+        self.graphWidget1.setBackground('w')
+        dialoglayout.addWidget(self.graphWidget1)
+
+        controlfields_layout = QtWidgets.QGridLayout()
+        if self.fitparamdict is None:
+            self.fitparamdict = getattr(mdl,self.fitmodel_string+"_prefit")(self.xvals,self.yvals,self.errorbars,return_dict = True)
+        self.datastring_fields = []
+        self.fitparamdictkeys = []
+        for (idx,(key,val)) in enumerate(self.fitparamdict.items()):
+            label = QtGui.QLabel(key)
+            self.fitparamdictkeys.append(key)
+            field = QtGui.QLineEdit()
+            if isinstance(val,float) or isinstance(val,int):
+                field.setText("{:.06f}".format(val))
+            else:
+                print("Message from Class {:s}: values given in fitparamdict are neither numbers nor None. Not clear how to deal with this. Not doing anything".format(self.__class__.__name__))
+                return None
+            field.textEdited.connect(self.update_paramdict)
+            self.datastring_fields.append(field)
+            controlfields_layout.addWidget(label,idx,0)
+            controlfields_layout.addWidget(field,idx,1)
+
+        dialoglayout.addLayout(controlfields_layout)
+        self.setLayout(dialoglayout)
+        
+        # Setting up the plot here
+        self.datacurve = self.graphWidget1.plot(symbol = self.__dotsymbol,
+                symbolBrush = self.__symbolbrush,pen = pg.mkPen(None))
+        self.datacurve.setData(self.xvals,self.yvals)
+        if self.errorbars is not None:
+            self.errorbars_plot = pg.ErrorBarItem(x = self.xvals,y=self.yvals,
+                    top = self.errorbars,bottom = self.errorbars,
+                    pen  = pg.mkPen(color = self.__plotcolorchoice,
+                        style = QtCore.Qt.DashLine))
+            self.graphWidget1.addItem(self.errorbars_plot)
+        self.plotcurve = self.graphWidget1.plot(pen = pg.mkPen(self.__plotcolorchoice,
+            style = QtCore.Qt.SolidLine))
+        self.makeplot()
+
+    def makeplot(self):
+        if None in list(self.fitparamdict.values()):
+            pass
+        else:
+            aXvalsDense = np.linspace(self.xvals[0],self.xvals[-1],self.numpoints_curve)
+            fitfunction = getattr(mdl,self.fitmodel_string+"_base")
+            aYvalsDense = fitfunction(list(self.fitparamdict.values()),
+                    aXvalsDense)
+            self.plotcurve.clear()
+            self.plotcurve.setData(aXvalsDense,aYvalsDense)
+
+    def update_paramdict(self,text):
+        for (idx,field) in enumerate(self.datastring_fields):
+            try:
+                input_float = float(field.text())
+                self.fitparamdict[self.fitparamdictkeys[idx]] = input_float
+            except:
+                if (field.text() == "") or field.text().isspace():
+                    self.fitparamdict[self.fitparamdictkeys[idx]] = None
+                else:
+                    print("Message from Class {:s}: input value {} in Prefit dialog cannot be converted to float. Clearing the value".format(self.__class__.__name__,field.text()))
+                    self.datastring_fields[idx].clear()
+                    self.fitparamdict[self.fitparamdictkeys[idx]] = None
+        if None in list(self.fitparamdict.values()):
+            pass
+        else:
+            self.makeplot()
+        
 class PhononFitter:
     """
     Define so that it makes a single fit, one data set

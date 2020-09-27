@@ -17,7 +17,7 @@ import numpy as np
 from functools import partial
 from socketserver import TCPIPserver
 from interpreter import message_interpreter as mi
-from fitterclass import GeneralFitter1D
+from fitterclass import GeneralFitter1D, PrefitterDialog
 
 pg.setConfigOptions(crashWarning=True)
 
@@ -110,59 +110,95 @@ class MainWindow(QtGui.QMainWindow):
 
 
         maxthreads_threadpool = 5
-
+        
+        # this is a predefined color palette in order to produce plots, 
+        #first line drawn with have the same color on every plot, 
+        #same for the second line, and so on
         self.colorpalette = [(255,0,0),(0,255,0),(0,0,255),(255,255,0),(0,255,255),
                 (255,0,255),(128,128,128),(128,0,0),(128,128,0),(0,128,0),(128,0,128),
                 (0,128,128),(0,0,128)]
+
+        # Now we give string-valued names to all the attributes that will have 
+        #multiple members during the fitting procedures
+        """
+
+        self.yaxis_name : the basis for the attributes that will hold the data
+            on the vertical axis (Dependent variable)
+        self.err_name : the basis for the attributes that will hold the error 
+            bars for each point
+        self.plot_line_name : the basis for the plot name, to be used with pyqtgraph
+        self.errorbar_item_name : the basis for the objects of type ErrorbarItem"
+            that pyqtgraph will use for plotting error bars
+        self.pen_name : the basis for style container for the curves in pyqtgraph
+        self.errorbar_pen_name : the basis for the style of the error bar marks
+        self.paramdict_name : parameter dictionary for making fits; prefits, etc
+        """
         self.yaxis_name = "y"
-        self.err_name = "err" # This is the name of the attribute which saves the values of the errorbars
+        self.err_name = "err" 
         self.plot_line_name = "data_line"
-        self.errorbar_item_name = "errorbar_item" # this is purely for plotting errorbars, pyqtgraph stuff
+        self.errorbar_item_name = "errorbar_item"
         self.pen_name = "pen"
         self.errorbar_pen_name = "errpen"
-        
+        self.paramdict_name = "paramdict"
+
+        self.x = [] # This is the x-axis for all plots
+        # NOTE: Maybe we will have to change this so that plots with different 
+        #numbers of x-axis points can be processed uniformly 
+
+
+        # This is the number of datasets in the current state of the class instance
         self.num_datasets = 0
         self.arePlotsCleared = True
+        self.prefitDialogWindow = None
 
-        mwlayout = QtWidgets.QVBoxLayout()
-        #aTCPIPserver.listener_function() # Do not just call it, this must be in a Qt Thread, otherwise it blocks due to the while True statement in it 
-        self.graphWidget = pg.PlotWidget()
+        # the main window is the one holding the plot, and some buttons below. 
+        #we make it a vertical box QVBoxLayout, then in this vertical box structure
+        #horizontal boxes can be added for buttons, fields, etc. 
+        mainwindow_layout = QtWidgets.QVBoxLayout()
+        
+        # The main field for plotting, which is taken from pyqtgraph, will be called 
+        #graphWidget (instance of pyqtgraph.PlotWidget() )
+        self.graphWidget = pg.PlotWidget() 
         self.graphWidget.setBackground('w')
-        mwlayout.addWidget(self.graphWidget)
+        mainwindow_layout.addWidget(self.graphWidget)
 
-        #Clear plot and clear data buttons
+        # Two buttons right below the plot: Clear plot and clear data
         self.ClearPlotButton = QtGui.QPushButton("Clear plot")
         self.ClearDataButton = QtGui.QPushButton("Clear data")
+        self.ClearPlotButton.clicked.connect(partial(self.clear_plot,""))
+        self.ClearDataButton.clicked.connect(partial(self.clear_data,"all"))
+        
         ClearPlotAndDataBox = QtGui.QHBoxLayout()
         ClearPlotAndDataBox.addWidget(self.ClearPlotButton)
         ClearPlotAndDataBox.addWidget(self.ClearDataButton)
-        mwlayout.addLayout(ClearPlotAndDataBox)
+        mainwindow_layout.addLayout(ClearPlotAndDataBox) # so we can keep adding widgets as we go, they will be added below in vertical box layout, because the main layout is defined to be the vertical box layout
         
-        self.ClearPlotButton.clicked.connect(partial(self.clear_plot,""))
-        self.ClearDataButton.clicked.connect(partial(self.clear_data,"all"))
        
-        # Make fit buttons
+        # Next row in the GUI: buttons controls related to making the fit
         self.MakeFitButton = QtGui.QPushButton("Do fit")
+        self.PrefitButton = QtGui.QPushButton("Prefit")
         self.RegisterCurvesButton = QtGui.QPushButton("Reg. cv.")
-        self.ComboBoxFits = QtGui.QComboBox()
-        self.ComboBoxPlotNumbers = QtGui.QComboBox()
-        self.ComboBoxFits.addItems(["None","sinewave","damped_sine"])
-        # self.ComboBoxPlotNumbers.addItems should be called in the code in order to create a choice which plot to fit 
-        MakeFitBoxLayout = QtGui.QHBoxLayout()
-        MakeFitBoxLayout.addWidget(self.MakeFitButton)
-        MakeFitBoxLayout.addWidget(self.RegisterCurvesButton)
-        MakeFitBoxLayout.addWidget(self.ComboBoxFits)
-        MakeFitBoxLayout.addWidget(self.ComboBoxPlotNumbers)
-        mwlayout.addLayout(MakeFitBoxLayout)
-
         self.RegisterCurvesButton.clicked.connect(self.register_available_curves)
         self.MakeFitButton.clicked.connect(self.process_MakeFit_button)
+        self.PrefitButton.clicked.connect(self.process_Prefit_button)
+        
+        self.FitFunctionChoice = QtGui.QComboBox()
+        self.PlotNumberChoice = QtGui.QComboBox()
+        self.FitFunctionChoice.addItems(["None","sinewave","damped_sine"])
+        # self.PlotNumberChoice.addItems should be called in the code in order to create a choice which plot to fit 
+        MakeFitBoxLayout = QtGui.QHBoxLayout()
+        MakeFitBoxLayout.addWidget(self.MakeFitButton)
+        MakeFitBoxLayout.addWidget(self.PrefitButton)
+        MakeFitBoxLayout.addWidget(self.RegisterCurvesButton)
+        MakeFitBoxLayout.addWidget(self.FitFunctionChoice)
+        MakeFitBoxLayout.addWidget(self.PlotNumberChoice)
+        mainwindow_layout.addLayout(MakeFitBoxLayout)
 
-        self.x = []
 
-        pen = pg.mkPen(color=(255, 0, 0))
+        # setting the main widget to be the one containing the plot and setting 
+        #the main window layout
         mainwidget = QtWidgets.QWidget()
-        mainwidget.setLayout(mwlayout)
+        mainwidget.setLayout(mainwindow_layout)
         #self.setGeometry(50,50,700,700)
         self.setCentralWidget(mainwidget)
         self.show()
@@ -173,7 +209,9 @@ class MainWindow(QtGui.QMainWindow):
         #self.timer.timeout.connect(self.update_plot_data)
         #self.timer.start()
 
-      
+
+        # This has to do with QT threads, for now this is just following the examples 
+        #not quite sure whether this is the best way to have it work 
         self.threadpool = QtCore.QThreadPool()
         self.threadpool.setMaxThreadCount(maxthreads_threadpool)
 
@@ -194,23 +232,29 @@ class MainWindow(QtGui.QMainWindow):
     
     def register_available_curves(self):
         for idx in range(self.num_datasets):
-            self.ComboBoxPlotNumbers.addItem(f"{idx}")        
+            self.PlotNumberChoice.addItem(f"{idx}")        
 
-    def process_MakeFit_button(self):
-        if self.ComboBoxFits.currentText() == "None":
-            print("Chosen fit is None. Not doing any fits")
+    def __check_Fit_settings(self):
+        """
+        This function checks if the correct curve has been chosen, if the 
+        data exists for that curve, and then returns a tuple containing 
+        x-vals, y-vals , errorbars (errorbars can be None, the functions 
+        downstream should be able to take care of that)
+        """
+        if self.FitFunctionChoice.currentText() == "None":
+            print("Chosen fit function is None. Not doing anything")
             return None
         else:
             try:
-                fitCurveNumber = int(self.ComboBoxPlotNumbers.currentText())
+                fitCurveNumber = int(self.PlotNumberChoice.currentText())
             except:
-                print("Message from class {:s} function process_MakeFit_button: fitCurveNumber is undefined. It's not clear which curve to fit. Not fitting anything.".format(self.__class__.__name__))
+                print("Message from class {:s} function __check_Fit_settings: fitCurveNumber is undefined. Not doing anything ".format(self.__class__.__name__))
                 return None
             if not hasattr(self,self.yaxis_name+f"{fitCurveNumber}"):
-                print("Message from class {:s}: the curve number that you are trying to fit does not exist. Not doing any fit".format(self.__class__.__name__))
+                print("Message from class {:s}: the curve number that you are trying to fit does not exist. Not doing anything".format(self.__class__.__name__))
                 return None
             if len(getattr(self,self.yaxis_name+f"{fitCurveNumber}")) == 0:
-                print("Message from class {:s}: the curve number that you are trying to fit probably got deleted before. Not doing any fit".format(self.__class__.__name__))
+                print("Message from class {:s}: the curve number that you are trying to fit probably got deleted before. Not doing anything".format(self.__class__.__name__))
                 return None
 
             aXvals = self.x
@@ -223,8 +267,19 @@ class MainWindow(QtGui.QMainWindow):
             else:
                 aErrorBars = None
 
+        return (aXvals,aYvals,aErrorBars) # They are not sorted!
+        
+
+    def process_MakeFit_button(self):
+            result_check_settings = self.__check_Fit_settings()
+            if result_check_settings:
+                (aXvals,aYvals,aErrorBars) = result_check_settings
+            else:
+                print("Message from function process_MakeFit_button: __check_Fit_settings function failed, check out its error messages and input data")
+                return None
+
             aFitter = GeneralFitter1D(xvals = aXvals, yvals = aYvals, errorbars = aErrorBars)
-            aFitter.setupFit(fitfunction = self.ComboBoxFits.currentText())
+            aFitter.setupFit(fitfunction = self.FitFunctionChoice.currentText())
             fitres = aFitter.doFit()
             if fitres.success is True:
                 aFitter.plotFit(self.graphWidget)
@@ -232,6 +287,45 @@ class MainWindow(QtGui.QMainWindow):
                 print("Message from Class {:s} function process_MakeFit_button: Fit is not successful, not plotting anything".format(self.__class__.__name__))
             print(fitres)
 
+    def process_Prefit_button(self):
+        result_check_settings = self.__check_Fit_settings()
+        if result_check_settings:
+            (aXvals,aYvals,aErrorBars) = result_check_settings
+        else:
+            print("Message from function process_Prefit_button: __check_Fit_settings function failed, check out its error messages and input data")
+            return None
+        fitmodel_name = self.FitFunctionChoice.currentText()
+        curve_number = int(self.PlotNumberChoice.currentText())
+ 
+        if not hasattr(self,self.paramdict_name+"{:d}".format(curve_number)):
+            setattr(self, self.paramdict_name+"{:d}".format(curve_number),None)
+
+        if self.prefitDialogWindow is None: 
+            self.prefitDialogWindow = PrefitterDialog(fitmodel_name,
+                    curve_number,
+                    getattr(self,self.paramdict_name+"{:d}".format(curve_number)),
+                    xvals = aXvals, 
+                    yvals = aYvals, 
+                    errorbars = aErrorBars)
+            setattr(self,self.paramdict_name+"{:d}".format(curve_number),self.prefitDialogWindow.fitparamdict)
+        elif (self.prefitDialogWindow.fitmodel_string != fitmodel_name) or \
+                (self.prefitDialogWindow.fitcurvenumber != curve_number):
+            # if we change the fit model or curve number, 
+            # we should refresh the window
+            setattr(self, self.paramdict_name+"{:d}".format(self.prefitDialogWindow.fitcurvenumber),self.prefitDialogWindow.fitparamdict)
+            if self.prefitDialogWindow.fitmodel_string != fitmodel_name:
+                setattr(self, self.paramdict_name+"{:d}".format(curve_number),None)
+                #print("Fitmodel is different, setting paramdict to None")
+            #print("Something changes in prefit dialog window. Closing it and restarting")
+            self.prefitDialogWindow.close()
+            self.prefitDialogWindow = PrefitterDialog(fitmodel_name,
+                    curve_number,
+                    getattr(self,self.paramdict_name+"{}".format(curve_number)),
+                    xvals = aXvals, 
+                    yvals = aYvals, 
+                    errorbars = aErrorBars)
+        
+        self.prefitDialogWindow.show()
 
     def showdata(self,data):
         print(data)
@@ -348,7 +442,7 @@ class MainWindow(QtGui.QMainWindow):
                     break
             self.clear_plot("")
             self.num_datasets = 0
-            self.ComboBoxPlotNumbers.clear()
+            self.PlotNumberChoice.clear()
             return None
         else:
             try:
@@ -376,6 +470,10 @@ class MainWindow(QtGui.QMainWindow):
     def buttonHandler(self,textmessage="blahblahblah"): # we can get the arguments in using functools.partial, or better take no arguments
         print(textmessage)
 
+    def closeEvent(self,event):
+        if self.prefitDialogWindow:
+            self.prefitDialogWindow.close()
+
 def runPlotter(sysargs):
 
     HOST = "127.0.0.1"
@@ -387,6 +485,8 @@ def runPlotter(sysargs):
     w = MainWindow(myServer)
     #w.show()
     app.exec_()
+    if w.prefitDialogWindow:
+        w.prefitDialogWindow.close()
     print("done with the plotter")
 
 

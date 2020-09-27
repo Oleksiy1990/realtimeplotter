@@ -31,7 +31,7 @@ while True:
     s.connect((HOST, PORT))
     #my_information = "listdata errorbar_no {:.03f} {:.03f} {:.03f}".format(q,q/5,q/10)
     #my_information = "listdata errorbar_yes {:.03f} {:.03f} {:.03f}".format(val,np.sin(val),val/10)
-    my_information = "listdata errorbar_yes {:.03f} {:.03f} {:.03f}".format(val,np.sin(val)+val_random_error,val_random_errorbar)
+    my_information = "listdata errorbar_yes {:.03f} {:.03f} {:.03f} {:.03f} {:.03f}".format(val,np.sin(val)+val_random_error,val_random_errorbar,np.sin(val/2)+val_random_error,val_random_errorbar)
     #my_information = "listdata errorbar_no {:.03f} {:.03f} {:.03f} {:.03f}".format(val,np.sin(val),val/10,np.log(val))
     
     #my_information2 = "What's up here?"
