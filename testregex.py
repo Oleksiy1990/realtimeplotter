@@ -15,8 +15,39 @@ pat3 = r"listdata\s+errorbar_yes\s+(\d+\.?\d*e-?\d+\s|\d+\.\d+\s)(.+)"
 pat4 = r"(\d+\.\d+ )"
 res = re.search(pat3, my_test_string)
 
-datastring = res.group(2)
-print(datastring)
+blah="10"
+rawstrformat = r"({:s})\s+(all|\d{{1,}}\s*)".format(blah)
+print(rawstrformat)
+
+
+def process_setPlotLegend(input_pattern_raw_string,message_parts_list):
+    full_SetPlotLegend_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
+    print(full_SetPlotLegend_pattern)
+    for individual_message in message_parts_list:
+        search_res = re.search(full_SetPlotLegend_pattern,individual_message)
+        if search_res:
+            legend_labels_list = []
+            legendLabels = search_res.group(2)
+            allLegendLabels = legendLabels.split(",")
+            for legendlabel in allLegendLabels:
+                individual_label_pattern = r"(curve|Curve)(\d{1,2})\s+(.*)"
+                individual_label_search_res = re.search(individual_label_pattern,legendlabel)
+                if individual_label_search_res:
+                    curve_num = int(individual_label_search_res.group(2))
+                    legend_string = individual_label_search_res.group(3)
+                    legend_labels_list.append((curve_num,legend_string))
+            message_parts_list.remove(individual_message)
+            return ("set_plot_legend",legend_labels_list)
+    return None
+
+input_pattern_raw_string = r"setPlotLegend"
+message_parts_list = ["setPlotLegend Curve0 blah 00, Curve2 blah 02 ", "blah blah blahlahlah"]
+
+res = process_setPlotLegend(input_pattern_raw_string,message_parts_list)
+print(res)
+
+datastring = res.group(1)
+print("Datastring: ",datastring)
 
 datapattern = r"(\d+\.\d+)"
 newres = re.findall(datapattern, datastring)
@@ -55,8 +86,3 @@ if aaa:
 else:
     print("No")
     
-teststring4 = "         "
-
-testlist = []
-for q in testlist:
-    print(q)

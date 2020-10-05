@@ -13,7 +13,7 @@ import mathfunctions.fitmodels as mdl
 import scipy.optimize as sopt
 from PyQt5 import QtWidgets 
 from PyQt5 import QtGui, QtCore
-
+import helperfunctions
 
 class GeneralFitter1D:
     def __init__(self,xvals=None,yvals=None,errorbars=None):
@@ -22,54 +22,6 @@ class GeneralFitter1D:
         the __init__ function checks that all inputs are as specified, and returns None if there is any error involved
         """
         
-        self.okToFit = False
-        
-        if errorbars is not None: 
-            if not isinstance(errorbars,list) or isinstance(errorbars,np.ndarray):
-                print("Message from class {:s}: errorbars, if given, must be either a list or a numpy array. Initialize it again with the correct input.".format(self.__class__.__name__))
-                return None
-
-        if isinstance(xvals,list):
-            self.xvals = np.array(xvals)
-        elif isinstance(xvals,np.ndarray):
-            self.xvals = xvals
-        else:
-            print("Message from class {:s}: xvals must be either a list or a numpy. Initialize it again with the correct input.".format(self.__class__.__name__))
-            return None
-        if isinstance(yvals,list):
-            self.yvals = np.array(yvals)
-        elif isinstance(yvals,np.ndarray):
-            self.yvals = yvals
-        else:
-            print("Message from class {:s}: yvals must be either a list or a numpy. Initialize it again with the correct input.".format(self.__class__.__name__))
-            return None
-
-        if (len(self.xvals.shape) != 1) or (len(self.yvals.shape) != 1):
-            print("Message from class {:s} both xvals and yvals arrays must be 1D. Initialize it again with the correct input".format(self.__class__.__name__))
-            return None
-        
-        if (self.xvals.shape[0] != self.yvals.shape[0]):
-            print("Message from class {:s}: length of the xvals and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
-            return None
-        
-        if errorbars is None:
-            self.errorbars = np.ones(self.xvals.shape,dtype=float)
-        elif isinstance(errorbars,list):
-            self.errorbars = np.array(errorbars)
-        elif isinstance(errorbars,np.ndarray):
-            self.errorbars = errorbars
-        else:
-            print("Message from class {:s}: errorbars must be either a list or a numpy, or do not input anything. Initialize it again with the correct input.".format(self.__class__.__name__))
-            return None
-
-        if (self.errorbars.shape[0] != self.xvals.shape[0]):
-            print("Message from class {:s}: length of the errorbars and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
-            return None
-        self.okToFit = True
-
-
-        #NOTE! self.xvals is not sorted in this case!
-
     def cropData(self,cropping_bounds = None):
         if not self.okToFit:
             print("Warning message from Class {:s} function cropData: okToFit parameter is False. Something was wrong with the data you provided, check previous error messages. Not cropping".format(self.__class__.__name__))
@@ -199,8 +151,6 @@ class GeneralFitter1D:
 
     def plotFit(self,pyqtgraph_plotwidget,linestyle = "--"):
         aXvalsDense = np.linspace(np.min(self.xvals),np.max(self.xvals),350)
-        print("from plotFit: x[0] :",aXvalsDense[0])
-        print("from plotFit: x[-1] :",aXvalsDense[-1])
         pyqtgraph_plotwidget.plot(aXvalsDense,self.fitfunctionBase(self.optimizationResult.x,aXvalsDense),pen="k")
 
     
@@ -208,52 +158,37 @@ class GeneralFitter1D:
         print("Closing {:s} class instance".format(self.__class__.__name__))
 
 class PrefitterDialog(QtWidgets.QWidget):
-    def __init__(self,fitmodel,fitcurvenumber,fitparamdict,
-            xvals=None,yvals=None,
-            errorbars=None):
-        if not isinstance(fitmodel,str):
-            print("Message from Class {:s}: you must provide a fit model name as a string. Not doing anything".format(self.__class__.__name__))
-            return None
+    def __init__(self,fitmodel_instance):
+        # this is not corrected yet to appropriately process fitmodel instance
         super().__init__()
-        self.fitmodel_string = fitmodel
-        self.fitcurvenumber = fitcurvenumber
-        self.fitparamdict = fitparamdict
-        self.numpoints_curve = 350
-        # We make sure that the x-axis is sorted here
-        sort_idx_x = np.argsort(xvals)
-        self.xvals = np.array(xvals)[sort_idx_x] 
-        self.yvals = np.array(yvals)[sort_idx_x]
-        if errorbars is not None:
-            self.errorbars = np.array(errorbars)[sort_idx_x]
-        else:
-            self.errorbars = None
-        
-        self.__dotsymbol = "o"
-        self.__plotcolorchoice = (255,0,0) # this just means red in RGB scheme
-        self.__symbolbrush = pg.mkBrush(self.__plotcolorchoice)
+        self.NUMPOINTS_CURVE = 350
+        self.fitmodel = fitmodel_instance
+
+        # not sure here yet...
+        self.preplotdotsymbol = "o"
+        self.preplotcolorpalette = helperfunctions.colorpalette[self.fitmodel.fit_function_number%len(helperfunctions.colorpalette)] # This is just modulo in colors so that if there are too many plots, they start repeating colors
+        self.preplotsymbolbrush = pg.mkBrush(self.preplotcolorpalette)
 
 
+        # set window title, layout, and pyqtgraph plotting widget
         self.setWindowTitle("Pre-fit dialog")
         dialoglayout = QtWidgets.QVBoxLayout()
         self.graphWidget1 = pg.PlotWidget()
         self.graphWidget1.setBackground('w')
         dialoglayout.addWidget(self.graphWidget1)
-
         controlfields_layout = QtWidgets.QGridLayout()
-        if self.fitparamdict is None:
-            self.fitparamdict = getattr(mdl,self.fitmodel_string+"_prefit")(self.xvals,self.yvals,self.errorbars,return_dict = True)
         self.datastring_fields = []
-        self.fitparamdictkeys = []
-        for (idx,(key,val)) in enumerate(self.fitparamdict.items()):
+        self.datastring_labels = []
+
+        # Here we set up the prefit GUI by filling 
+        #out the grid of dictionary names and values for a 
+        #particular plot
+        for (idx,(key,val)) in enumerate(self.fitmodel.fit_function_paramdict_prefit.items()):
             label = QtGui.QLabel(key)
-            self.fitparamdictkeys.append(key)
             field = QtGui.QLineEdit()
-            if isinstance(val,float) or isinstance(val,int):
-                field.setText("{:.06f}".format(val))
-            else:
-                print("Message from Class {:s}: values given in fitparamdict are neither numbers nor None. Not clear how to deal with this. Not doing anything".format(self.__class__.__name__))
-                return None
+            field.setText("{:.06f}".format(val))
             field.textEdited.connect(self.update_paramdict)
+            self.datastring_labels.append(label) # the dictionary labels
             self.datastring_fields.append(field)
             controlfields_layout.addWidget(label,idx,0)
             controlfields_layout.addWidget(field,idx,1)
@@ -261,44 +196,53 @@ class PrefitterDialog(QtWidgets.QWidget):
         dialoglayout.addLayout(controlfields_layout)
         self.setLayout(dialoglayout)
         
-        # Setting up the plot here
-        self.datacurve = self.graphWidget1.plot(symbol = self.__dotsymbol,
-                symbolBrush = self.__symbolbrush,pen = pg.mkPen(None))
-        self.datacurve.setData(self.xvals,self.yvals)
-        if self.errorbars is not None:
-            self.errorbars_plot = pg.ErrorBarItem(x = self.xvals,y=self.yvals,
-                    top = self.errorbars,bottom = self.errorbars,
-                    pen  = pg.mkPen(color = self.__plotcolorchoice,
+        # datapointsplot stands for just the data 
+        self.datapointsplot = self.graphWidget1.plot(symbol = self.preplotdotsymbol,
+                symbolBrush = self.preplotsymbolbrush,
+                pen = pg.mkPen(None))
+        self.datapointsplot.setData(self.fitmodel.xvals,
+                self.fitmodel.yvals)
+        if self.fitmodel.areErrorbarsGiven:
+            self.errorbars_plot = pg.ErrorBarItem(x = self.fitmodel.xvals,y=self.fitmodel.yvals,
+                    top = self.fitmodel.errorbars,
+                    bottom = self.fitmodel.errorbars,
+                    pen  = pg.mkPen(color = self.preplotcolorpalette,
                         style = QtCore.Qt.DashLine))
             self.graphWidget1.addItem(self.errorbars_plot)
-        self.plotcurve = self.graphWidget1.plot(pen = pg.mkPen(self.__plotcolorchoice,
+        
+        # curveplot is the plot of the actual curve with whatever
+        #prefit parameters are in there at the moment
+        self.plotcurve = self.graphWidget1.plot(pen = pg.mkPen(self.preplotcolorpalette,
             style = QtCore.Qt.SolidLine))
+
         self.makeplot()
 
     def makeplot(self):
-        if None in list(self.fitparamdict.values()):
+        if None in list(self.fitmodel.fit_function_paramdict_prefit.values()):
             pass
         else:
-            aXvalsDense = np.linspace(self.xvals[0],self.xvals[-1],self.numpoints_curve)
-            fitfunction = getattr(mdl,self.fitmodel_string+"_base")
-            aYvalsDense = fitfunction(list(self.fitparamdict.values()),
-                    aXvalsDense)
+            paramlist = list(self.fitmodel.fit_function_paramdict_prefit.values())
+            aXvalsDense = np.linspace(self.fitmodel.xvals[0],self.fitmodel.xvals[-1],self.NUMPOINTS_CURVE)
+            # NOTE! This is not necessarily good, I just assume here that dictionary order does not change. This may be wrong
+            aYvalsDense = self.fitmodel.fit_function_base(paramlist,aXvalsDense)
             self.plotcurve.clear()
             self.plotcurve.setData(aXvalsDense,aYvalsDense)
 
-    def update_paramdict(self,text):
-        for (idx,field) in enumerate(self.datastring_fields):
+    def update_paramdict(self,atext):
+
+        # we go though the list of the data fields and check what 
+        #the new values are and set them into the prefit dictionary
+        for idx in range(len(self.datastring_labels)):
             try:
-                input_float = float(field.text())
-                self.fitparamdict[self.fitparamdictkeys[idx]] = input_float
+                input_float = float(self.datastring_fields[idx].text())
+                self.fitmodel.fit_function_paramdict_prefit[self.datastring_labels[idx].text()] = input_float
             except:
-                if (field.text() == "") or field.text().isspace():
-                    self.fitparamdict[self.fitparamdictkeys[idx]] = None
+                if (self.datastring_fields[idx].text() == "") or self.datastring_fields[idx].text().isspace():
+                    self.fitmodel.fit_function_paramdict_prefit[self.datastring_labels[idx].text()] = None
                 else:
-                    print("Message from Class {:s}: input value {} in Prefit dialog cannot be converted to float. Clearing the value".format(self.__class__.__name__,field.text()))
-                    self.datastring_fields[idx].clear()
-                    self.fitparamdict[self.fitparamdictkeys[idx]] = None
-        if None in list(self.fitparamdict.values()):
+                    print("Message from Class {:s}: input value {} in Prefit dialog cannot be converted to float. Clearing the value".format(self.__class__.__name__,
+                        self.datastring_fields[idx].text()))
+        if None in list(self.fitmodel.fit_function_paramdict_prefit.values()):
             pass
         else:
             self.makeplot()

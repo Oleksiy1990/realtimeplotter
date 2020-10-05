@@ -16,8 +16,10 @@ from random import randint
 import numpy as np
 from functools import partial
 from socketserver import TCPIPserver
-from interpreter import message_interpreter as mi
+from interpreter import message_interpreter
 from fitterclass import GeneralFitter1D, PrefitterDialog
+import fitmodelclass as fm
+import helperfunctions
 
 pg.setConfigOptions(crashWarning=True)
 
@@ -108,15 +110,12 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self, aTCPIPserver):
         super().__init__()
 
-
         maxthreads_threadpool = 5
         
         # this is a predefined color palette in order to produce plots, 
         #first line drawn with have the same color on every plot, 
         #same for the second line, and so on
-        self.colorpalette = [(255,0,0),(0,255,0),(0,0,255),(255,255,0),(0,255,255),
-                (255,0,255),(128,128,128),(128,0,0),(128,128,0),(0,128,0),(128,0,128),
-                (0,128,128),(0,0,128)]
+        self.colorpalette = helperfunctions.colorpalette
 
         # Now we give string-valued names to all the attributes that will have 
         #multiple members during the fitting procedures
@@ -124,7 +123,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.yaxis_name : the basis for the attributes that will hold the data
             on the vertical axis (Dependent variable)
-        self.err_name : the basis for the attributes that will hold the error 
+        self.err_name : the basis for the attributes that will hold the error values
             bars for each point
         self.plot_line_name : the basis for the plot name, to be used with pyqtgraph
         self.errorbar_item_name : the basis for the objects of type ErrorbarItem"
@@ -140,6 +139,7 @@ class MainWindow(QtGui.QMainWindow):
         self.pen_name = "pen"
         self.errorbar_pen_name = "errpen"
         self.paramdict_name = "paramdict"
+        self.fitmodel_instance_name = "fitmodel"
 
         self.x = [] # This is the x-axis for all plots
         # NOTE: Maybe we will have to change this so that plots with different 
@@ -195,6 +195,8 @@ class MainWindow(QtGui.QMainWindow):
         mainwindow_layout.addLayout(MakeFitBoxLayout)
 
 
+        # setting the main widget to be the one containing the plot and setting 
+        #the main window layout
         mainwidget = QtWidgets.QWidget()
         mainwidget.setLayout(mainwindow_layout)
         #self.setGeometry(50,50,700,700)
@@ -207,7 +209,9 @@ class MainWindow(QtGui.QMainWindow):
         #self.timer.timeout.connect(self.update_plot_data)
         #self.timer.start()
 
-      
+
+        # This has to do with QT threads, for now this is just following the examples 
+        #not quite sure whether this is the best way to have it work 
         self.threadpool = QtCore.QThreadPool()
         self.threadpool.setMaxThreadCount(maxthreads_threadpool)
 
@@ -217,7 +221,12 @@ class MainWindow(QtGui.QMainWindow):
 
 
     def interpret_message(self,message):
-        interpretation_result = mi(message)
+        """
+        Message is supposed to be a string. 
+        The result is a list of tuples. Each tuple has the form 
+        ("function name",argument)
+        """
+        interpretation_result = message_interpreter(message)
         for res in interpretation_result:
             function_to_call = getattr(self,res[0],"nofunction")
             function_to_call(res[1])
@@ -230,7 +239,7 @@ class MainWindow(QtGui.QMainWindow):
         for idx in range(self.num_datasets):
             self.PlotNumberChoice.addItem(f"{idx}")        
 
-    def __check_Fit_settings(self):
+    def checkAndReturnDataPrefit(self):
         """
         This function checks if the correct curve has been chosen, if the 
         data exists for that curve, and then returns a tuple containing 
@@ -244,82 +253,98 @@ class MainWindow(QtGui.QMainWindow):
             try:
                 fitCurveNumber = int(self.PlotNumberChoice.currentText())
             except:
-                print("Message from class {:s} function __check_Fit_settings: fitCurveNumber is undefined. Not doing anything ".format(self.__class__.__name__))
+                print("Message from Class {:s} function checkAndReturnDataPrefit: fitCurveNumber is undefined. Not doing anything ".format(self.__class__.__name__))
                 return None
             if not hasattr(self,self.yaxis_name+f"{fitCurveNumber}"):
-                print("Message from class {:s}: the curve number that you are trying to fit does not exist. Not doing anything".format(self.__class__.__name__))
+                print("Message from Class {:s}: the curve number that you are trying to fit does not exist. Not doing anything".format(self.__class__.__name__))
                 return None
             if len(getattr(self,self.yaxis_name+f"{fitCurveNumber}")) == 0:
-                print("Message from class {:s}: the curve number that you are trying to fit probably got deleted before. Not doing anything".format(self.__class__.__name__))
+                print("Message from Class {:s}: the curve number that you are trying to fit probably got deleted before. Not doing anything".format(self.__class__.__name__))
                 return None
 
-            aXvals = self.x
-            aYvals = getattr(self,self.yaxis_name+f"{fitCurveNumber}")
+            #aXvals = self.x
+            #aYvals = getattr(self,self.yaxis_name+f"{fitCurveNumber}")
+           
+            # if there is no error bar curve, we set it to None, 
+            #and then functions downstream will take 
+            #care of it
             if hasattr(self,self.err_name+f"{fitCurveNumber}"):
-                if len(getattr(self,self.err_name+f"{fitCurveNumber}")) > 0:
-                    aErrorBars = getattr(self,self.err_name+f"{fitCurveNumber}")
-                else:
-                    aErrorBars = None
+                if len(getattr(self,self.err_name+f"{fitCurveNumber}")) == 0:
+                    setattr(self,self.err_name+f"{fitCurveNumber}",None)
             else:
-                aErrorBars = None
+                setattr(self,self.err_name+f"{fitCurveNumber}",None)
 
-        return (aXvals,aYvals,aErrorBars) # They are not sorted!
+        return (self.x,
+                getattr(self,self.yaxis_name+f"{fitCurveNumber}"),
+                getattr(self,self.yaxis_name+f"{fitCurveNumber}")) 
+                # They are not sorted!
         
 
     def process_MakeFit_button(self):
-            result_check_settings = self.__check_Fit_settings()
-            if result_check_settings:
-                (aXvals,aYvals,aErrorBars) = result_check_settings
-            else:
-                print("Message from function process_MakeFit_button: __check_Fit_settings function failed, check out its error messages and input data")
-                return None
-
-            aFitter = GeneralFitter1D(xvals = aXvals, yvals = aYvals, errorbars = aErrorBars)
-            aFitter.setupFit(fitfunction = self.FitFunctionChoice.currentText())
-            fitres = aFitter.doFit()
-            if fitres.success is True:
-                aFitter.plotFit(self.graphWidget)
-            else:
-                print("Message from Class {:s} function process_MakeFit_button: Fit is not successful, not plotting anything".format(self.__class__.__name__))
-            print(fitres)
-
-    def process_Prefit_button(self):
-        result_check_settings = self.__check_Fit_settings()
+        result_check_settings = self.checkAndReturnDataPrefit()
         if result_check_settings:
             (aXvals,aYvals,aErrorBars) = result_check_settings
         else:
-            print("Message from function process_Prefit_button: __check_Fit_settings function failed, check out its error messages and input data")
+            print("Message from function process_MakeFit_button: checkAndReturnDataPrefit function failed, check out its error messages and input data")
             return None
-        fitmodel_name = self.FitFunctionChoice.currentText()
-        curve_number = int(self.PlotNumberChoice.currentText())
- 
-        if not hasattr(self,self.paramdict_name+"{:d}".format(curve_number)):
-            setattr(self, self.paramdict_name+"{:d}".format(curve_number),None)
 
+        aFitter = GeneralFitter1D(xvals = aXvals, yvals = aYvals, errorbars = aErrorBars)
+        aFitter.setupFit(fitfunction = self.FitFunctionChoice.currentText())
+        fitres = aFitter.doFit()
+        if fitres.success is True:
+            aFitter.plotFit(self.graphWidget)
+        else:
+            print("Message from Class {:s} function process_MakeFit_button: Fit is not successful, not plotting anything".format(self.__class__.__name__))
+        print(fitres)
+
+    def process_Prefit_button(self):
+        result_check_settings = self.checkAndReturnDataPrefit()
+        if result_check_settings:
+            #TODELETE: The following print statements
+            print(self.FitFunctionChoice.currentText())
+            print(int(self.PlotNumberChoice.currentText()))
+            print(len(result_check_settings))
+            print(result_check_settings)
+            
+            # get the current name of the fit function and the curve number to fit
+            #remember that FitFunctionChoice and PlotNumberChoice are the GUI 
+            #QComboBox widgets
+            fitfunction_name = self.FitFunctionChoice.currentText()
+            curve_number = int(self.PlotNumberChoice.currentText())
+
+            # if the fitmodel_instance already exists, check if the required 
+            #fit function is the same as is in the existing fitmodel_instance.
+            #If not, delete fitmodel_instance and start again
+            #if fitmodel_instance does not exist, then create it
+            if hasattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)):
+                if getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fitfunction_name_string != fitfunction_name:
+                    print("Message from Class {:s} function process_Prefit_button: you changed the fit function for the curve which you already tried to process in prefit. Erasing all previous prefit parameters".format(self.__class__.__name__))
+                    delattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number))
+                    setattr(self,
+                        self.fitmodel_instance_name+"{:d}".format(curve_number),
+                        fm.Fitmodel(fitfunction_name,curve_number,
+                            *result_check_settings))
+                else:
+                    pass
+            else:
+                setattr(self,
+                        self.fitmodel_instance_name+"{:d}".format(curve_number),
+                    fm.Fitmodel(fitfunction_name,
+                        curve_number,*result_check_settings))
+        else:
+            print("Message from function process_Prefit_button: checkAndReturnDataPrefit function failed, check out its error messages and input data")
+            return None
+       
+        # Now we create the actual prefit dialog window (popup) 
+        # If prefitDialogWindow does not exist, we have to create it
         if self.prefitDialogWindow is None: 
-            self.prefitDialogWindow = PrefitterDialog(fitmodel_name,
-                    curve_number,
-                    getattr(self,self.paramdict_name+"{:d}".format(curve_number)),
-                    xvals = aXvals, 
-                    yvals = aYvals, 
-                    errorbars = aErrorBars)
-            setattr(self,self.paramdict_name+"{:d}".format(curve_number),self.prefitDialogWindow.fitparamdict)
-        elif (self.prefitDialogWindow.fitmodel_string != fitmodel_name) or \
-                (self.prefitDialogWindow.fitcurvenumber != curve_number):
-            # if we change the fit model or curve number, 
-            # we should refresh the window
-            setattr(self, self.paramdict_name+"{:d}".format(self.prefitDialogWindow.fitcurvenumber),self.prefitDialogWindow.fitparamdict)
-            if self.prefitDialogWindow.fitmodel_string != fitmodel_name:
-                setattr(self, self.paramdict_name+"{:d}".format(curve_number),None)
-                #print("Fitmodel is different, setting paramdict to None")
-            #print("Something changes in prefit dialog window. Closing it and restarting")
+            self.prefitDialogWindow = PrefitterDialog(getattr(self,
+                self.fitmodel_instance_name+"{:d}".format(curve_number)))
+        #otherwise we close and open it again with the correct prefitter
+        else:
             self.prefitDialogWindow.close()
-            self.prefitDialogWindow = PrefitterDialog(fitmodel_name,
-                    curve_number,
-                    getattr(self,self.paramdict_name+"{}".format(curve_number)),
-                    xvals = aXvals, 
-                    yvals = aYvals, 
-                    errorbars = aErrorBars)
+            self.prefitDialogWindow = PrefitterDialog(getattr(self,
+                self.fitmodel_instance_name+"{:d}".format(curve_number)))
         
         self.prefitDialogWindow.show()
 
