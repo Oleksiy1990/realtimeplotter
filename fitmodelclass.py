@@ -75,9 +75,6 @@ class Fitmodel:
             self.fit_function_paramdict_bounds,**kwargs)
 
 
-        # TODELETE
-        print("Message from Fitmodel do_prefit() function: ", self.fit_function_paramdict_prefit)
-
     def checkandsetData(self,xvals,yvals,errorbars):
 
         """
@@ -137,13 +134,12 @@ class Fitmodel:
         if (self.errorbars.shape[0] != self.xvals.shape[0]):
             print("Message from Class {:s} function checkandsetData: length of the errorbars and xvals and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
             return False
-        
         return True # if we got to this point, there is no error, so we can return True
 
     def sortDataByXaxis(self):
         xaxis_indices = np.argsort(self.xvals)
         self.xvals = self.xvals[xaxis_indices]
-        self.yvals = self.xvals[xaxis_indices]
-        self.errorbars = self.xvals[xaxis_indices]
+        self.yvals = self.yvals[xaxis_indices]
+        self.errorbars = self.errorbars[xaxis_indices]
 
 

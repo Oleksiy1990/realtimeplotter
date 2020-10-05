@@ -236,8 +236,10 @@ class MainWindow(QtGui.QMainWindow):
         print("Function interpreter.message_interpreter could not determine which function to call based on analyzing the transmitted message. Not calling any function. Here is the message that you transmitted (verbatim): {} \n".format(verbatim_message))
     
     def register_available_curves(self):
+        self.PlotNumberChoice.clear()
         for idx in range(self.num_datasets):
-            self.PlotNumberChoice.addItem(f"{idx}")        
+            if hasattr(self,self.yaxis_name+"{:d}".format(idx)):
+                self.PlotNumberChoice.addItem("{:d}".format(idx))        
 
     def checkAndReturnDataPrefit(self):
         """
@@ -255,28 +257,25 @@ class MainWindow(QtGui.QMainWindow):
             except:
                 print("Message from Class {:s} function checkAndReturnDataPrefit: fitCurveNumber is undefined. Not doing anything ".format(self.__class__.__name__))
                 return None
-            if not hasattr(self,self.yaxis_name+f"{fitCurveNumber}"):
+            if not hasattr(self,self.yaxis_name+"{:d}".format(fitCurveNumber)):
                 print("Message from Class {:s}: the curve number that you are trying to fit does not exist. Not doing anything".format(self.__class__.__name__))
                 return None
-            if len(getattr(self,self.yaxis_name+f"{fitCurveNumber}")) == 0:
+            if len(getattr(self,self.yaxis_name+"{:d}".format(fitCurveNumber))) == 0:
                 print("Message from Class {:s}: the curve number that you are trying to fit probably got deleted before. Not doing anything".format(self.__class__.__name__))
                 return None
 
-            #aXvals = self.x
-            #aYvals = getattr(self,self.yaxis_name+f"{fitCurveNumber}")
-           
             # if there is no error bar curve, we set it to None, 
             #and then functions downstream will take 
             #care of it
-            if hasattr(self,self.err_name+f"{fitCurveNumber}"):
-                if len(getattr(self,self.err_name+f"{fitCurveNumber}")) == 0:
-                    setattr(self,self.err_name+f"{fitCurveNumber}",None)
+            if hasattr(self,self.err_name+"{:d}".format(fitCurveNumber)):
+                if len(getattr(self,self.err_name+"{:d}".format(fitCurveNumber))) == 0:
+                    setattr(self,self.err_name+"{:d}".format(fitCurveNumber),None)
             else:
-                setattr(self,self.err_name+f"{fitCurveNumber}",None)
+                setattr(self,self.err_name+"{:d}".format(fitCurveNumber),None)
 
         return (self.x,
-                getattr(self,self.yaxis_name+f"{fitCurveNumber}"),
-                getattr(self,self.yaxis_name+f"{fitCurveNumber}")) 
+                getattr(self,self.yaxis_name+"{:d}".format(fitCurveNumber)),
+                getattr(self,self.err_name+"{:d}".format(fitCurveNumber))) 
                 # They are not sorted!
         
 

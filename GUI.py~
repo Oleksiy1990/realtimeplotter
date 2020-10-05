@@ -236,8 +236,10 @@ class MainWindow(QtGui.QMainWindow):
         print("Function interpreter.message_interpreter could not determine which function to call based on analyzing the transmitted message. Not calling any function. Here is the message that you transmitted (verbatim): {} \n".format(verbatim_message))
     
     def register_available_curves(self):
+        self.PlotNumberChoice.clear()
         for idx in range(self.num_datasets):
-            self.PlotNumberChoice.addItem(f"{idx}")        
+            if hasattr(self,self.yaxis_name+"{:d}".format(idx)):
+                self.PlotNumberChoice.addItem("{:d}".format(idx))        
 
     def checkAndReturnDataPrefit(self):
         """
@@ -262,9 +264,6 @@ class MainWindow(QtGui.QMainWindow):
                 print("Message from Class {:s}: the curve number that you are trying to fit probably got deleted before. Not doing anything".format(self.__class__.__name__))
                 return None
 
-            #aXvals = self.x
-            #aYvals = getattr(self,self.yaxis_name+f"{fitCurveNumber}")
-           
             # if there is no error bar curve, we set it to None, 
             #and then functions downstream will take 
             #care of it
@@ -276,7 +275,7 @@ class MainWindow(QtGui.QMainWindow):
 
         return (self.x,
                 getattr(self,self.yaxis_name+f"{fitCurveNumber}"),
-                getattr(self,self.yaxis_name+f"{fitCurveNumber}")) 
+                getattr(self,self.err_name+f"{fitCurveNumber}")) 
                 # They are not sorted!
         
 
@@ -300,12 +299,6 @@ class MainWindow(QtGui.QMainWindow):
     def process_Prefit_button(self):
         result_check_settings = self.checkAndReturnDataPrefit()
         if result_check_settings:
-            #TODELETE: The following print statements
-            print(self.FitFunctionChoice.currentText())
-            print(int(self.PlotNumberChoice.currentText()))
-            print(len(result_check_settings))
-            print(result_check_settings)
-            
             # get the current name of the fit function and the curve number to fit
             #remember that FitFunctionChoice and PlotNumberChoice are the GUI 
             #QComboBox widgets

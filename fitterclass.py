@@ -15,6 +15,9 @@ from PyQt5 import QtWidgets
 from PyQt5 import QtGui, QtCore
 import helperfunctions
 
+#TODELETE
+#import matplotlib.pyplot as plt
+
 class GeneralFitter1D:
     def __init__(self,xvals=None,yvals=None,errorbars=None):
         """
@@ -159,7 +162,6 @@ class GeneralFitter1D:
 
 class PrefitterDialog(QtWidgets.QWidget):
     def __init__(self,fitmodel_instance):
-        # this is not corrected yet to appropriately process fitmodel instance
         super().__init__()
         self.NUMPOINTS_CURVE = 350
         self.fitmodel = fitmodel_instance

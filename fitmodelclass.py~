@@ -14,6 +14,8 @@ import mathfunctions.fitmodels as fitmodels
 
 class Fitmodel:
     def __init__(self,fitfunction_name,fitfunction_number,x_axis_vals,measured_data,errorbars_in = None):
+        #TODELETE
+        print("Errorbars_in Fitmodel (sorted): ",np.sort(errorbars_in))
         
         self.fitfunction_name_string = fitfunction_name
         self.fit_function_number = fitfunction_number
@@ -31,13 +33,6 @@ class Fitmodel:
         
         self.sortDataByXaxis() # now all the arrays are sorted so that self.xvals goes form small to large
     
-        print("TODELETE: self.xvals from Fitmodel: ", self.xvals)
-        print("TODELETE: self.yvals from Fitmodel: ", self.yvals)
-        print("TODELETE: self.errorbars from Fitmodel: ", self.errorbars)
-        
-        print("TODELETE: self.xvals type from Fitmodel: ", type(self.xvals))
-        print("TODELETE: self.yvals from Fitmodel: ", type(self.yvals))
-        print("TODELETE: self.errorbars from Fitmodel: ", type(self.errorbars))
         self.fit_function_base = getattr(fitmodels,self.fitfunction_name_string+"_base")
         self.fit_function = getattr(fitmodels,self.fitfunction_name_string)
 
@@ -81,9 +76,6 @@ class Fitmodel:
         (self.fit_function_paramdict_prefit,self.fit_function_paramdict_bounds) = prefit_function(self.xvals,self.yvals,self.errorbars,self.fit_function_paramdict_prefit,
             self.fit_function_paramdict_bounds,**kwargs)
 
-
-        # TODELETE
-        print("Message from Fitmodel do_prefit() function: ", self.fit_function_paramdict_prefit)
 
     def checkandsetData(self,xvals,yvals,errorbars):
 
@@ -144,13 +136,14 @@ class Fitmodel:
         if (self.errorbars.shape[0] != self.xvals.shape[0]):
             print("Message from Class {:s} function checkandsetData: length of the errorbars and xvals and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
             return False
-        
+        #TODELETE
+        print("Err from checkandsetData (sorted): ",np.sort(self.errorbars))
         return True # if we got to this point, there is no error, so we can return True
 
     def sortDataByXaxis(self):
         xaxis_indices = np.argsort(self.xvals)
         self.xvals = self.xvals[xaxis_indices]
-        self.yvals = self.xvals[xaxis_indices]
-        self.errorbars = self.xvals[xaxis_indices]
+        self.yvals = self.yvals[xaxis_indices]
+        self.errorbars = self.errorbars[xaxis_indices]
 
 
