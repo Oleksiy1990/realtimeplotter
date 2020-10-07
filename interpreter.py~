@@ -61,8 +61,9 @@ def message_interpreter(message = ""):
     fitting initial values, etc etc
     """
     config_command_pattern = r"^config\s*;(.*)"
-    if re.search(config_command_pattern,message):
-        config_command_list = config_interpreter(message.group(1)) 
+    config_search_result = re.search(config_command_pattern,message)
+    if config_search_result:
+        config_command_list = config_interpreter(config_search_result.group(1)) 
         # message.group(1) is what is matched in brackets, not the word "config" itself
         return config_command_list
     
@@ -73,37 +74,51 @@ def message_interpreter(message = ""):
 
 def config_interpreter(fullmessage = ""):
     """
+    fullmessage is the entire string that comes after config;
     The idea is that the function message_interpreter calls config_interpreter as a helper function 
     """
     
+    # This dictionary holds all possible commands that can be sent
+    #in the config string
     config_command_dictionary = {"process_cleardata" : r"clear_data|cleardata",
         "process_setAxisLabels" : r"set_axis_labels|setaxislabels|setAxisLabels",
         "process_setPlotTitle" : r"set_plot_title|setplottitle|setPlotTitle",
-        "process_setPlotLegend" : r"set_plot_legend|setplotlegend|setPlotLegend"    }
+        "process_setPlotLegend" : r"set_plot_legend|setplotlegend|setPlotLegend",
+        "process_setFitFunction" : r"setfitfunction|set_fit_function",
+        "process_setCurveNumber" : r"setcurvenumber|set_curve_number",
+        "process_setStartingParameters" : r"setstartparams|setstartparameters|set_starting_values|set_starting_params|set_starting_parameters",
+        "process_doFit" : r"dofit|doFit|do_fit"}
 
-
+    # This is the list of the commands that will be returned back to the message_interpreter, and
+    #then to the main program
     output_command_list = []
     if not isinstance(fullmessage,str):
         print("Message from function config_interpreter: The message is not a string. Not doing anything")
         output_command_list.append(("nofunction",""))
         return output_command_list
 
-    message_parts_list = fullmessage.split(";") # Important point: the commands must be split with semicolons
+    # We will split the message string into parts now, where the parts are separated 
+    #using semicolons
+    message_parts_list = fullmessage.split(";") 
 
     if len(message_parts_list) < 1: 
         print("Message from function config_interpreter: you must specify at least config; and one more command in your string. Not doing anything")
         output_command_list.append(("nofunction",fullmessage))
         return output_command_list
 
-    # We will go through the whole config_command_dictionary and check the configuration string for the list of all
+    # We will go through the config_command_dictionary and check the configuration string for the list of all
     #available commands
     for (function,input_pattern) in config_command_dictionary.items():
         try:
-            function_to_call = getattr(globals(),function)
+            function_to_call = globals()[function]
         except:
             print("Such a function is not defined. Check your config_command_dictionary and make sure that the function with the name {} is defined in file interpreter.py".format(function))
             continue
+        # if we found the function in config_command_dictionary, we call it and feed the 
+        #message_parts_list to it
         function_output = function_to_call(input_pattern,message_parts_list)
+        # if the function fails, the output should be None, otherwise, it will be a command that can be 
+        #sent to the main program, and we append that command to the output_command_list
         if function_output is not None:
             output_command_list.append(function_output)
 
@@ -126,7 +141,7 @@ def config_interpreter(fullmessage = ""):
 What follows is a list of functions, all written according to similar design strategy and more or less similar implementation
 in order to parse the particular string messages and return the output to config interpreter for further processing.
 Each of these functions has to be called in EXACTLY the same way as the key in config_command_dictionary, and it takes two arguments:
-    input_pattern_raw_string, which is the value corresponding to that key of how the function is names in config_command_dictionary, and
+    input_pattern_raw_string, which is the value corresponding to the key that gives function name in config_command_dictionary, and
     the second argument is message_parts_list, which is just the semicolon-separated list of strings that comes after config; string
 In this way, new configurations can be added smoothly by just adding to the dictionary config_command_dictionary, and then defining 
 the corresponding function below
@@ -184,6 +199,54 @@ def process_setPlotLegend(input_pattern_raw_string,message_parts_list):
             return ("set_plot_legend",legend_labels_list)
     return None
 
+def process_setFitFunction(input_pattern_raw_string,message_parts_list):
+    full_SetFitFunction_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
+    for individual_message in message_parts_list:
+        search_res = re.search(full_SetFitFunction_pattern ,individual_message)
+        if search_res:
+            fitfunction_name = search_res.group(2).strip() #use strip() in order to remove any possible leading and trailing whitespace
+            message_parts_list.remove(individual_message)
+            return ("set_fit_function",fitfunction_name)
+    return None
+
+def process_setCurveNumber(input_pattern_raw_string,message_parts_list):
+    full_SetCurveNumber_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
+    for individual_message in message_parts_list:
+        search_res = re.search(full_SetCurveNumber_pattern,individual_message)
+        if search_res:
+            curvenumber_str = search_res.group(2).strip()
+            message_parts_list.remove(individual_message)
+            return ("set_curve_number",curvenumber_str)
+    return None
+
+def process_setStartingParameters(input_pattern_raw_string,message_parts_list):
+    full_SetStartingParameters_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
+    for individual_message in message_parts_list:
+        search_res = re.search(full_SetStartingParameters_pattern,individual_message)
+        if search_res:
+            output_startparam_dict = {}
+            full_startparam_string = search_res.group(2).strip()
+            startparam_string_split = full_startparam_string.split(",")
+            for singleparam_string in startparam_string_split:
+                key_val_pair = singleparam_string.split(":") # key and value are supposed to be separated by a colon
+                if (len(key_val_pair) != 2):
+                    print("Message from file {:s} function process_setStartingParameters: you tried to set this parameter {} but the format is not parameter : value. Ignoring it".format(__file__,key_val_pair))
+                    continue
+                else: 
+                    key = key_val_pair[0].strip()
+                    val = key_val_pair[1].strip()
+                    output_startparam_dict[key] = val
+            message_parts_list.remove(individual_message)
+            return ("set_starting_parameters",output_startparam_dict)
+    return None
+
+def process_doFit(input_pattern_raw_string,message_parts_list):
+    full_SetDoFit_pattern = r"({:s})\s+".format(input_pattern_raw_string)
+    for individual_message in message_parts_list:
+        search_res = re.search(full_SetDoFit_pattern,individual_message)
+        if search_res:
+            return ("do_fit","")
+    return None
 
 if __name__ == "__main__":
     pass

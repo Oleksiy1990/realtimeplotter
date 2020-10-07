@@ -130,7 +130,6 @@ class MainWindow(QtGui.QMainWindow):
             that pyqtgraph will use for plotting error bars
         self.pen_name : the basis for style container for the curves in pyqtgraph
         self.errorbar_pen_name : the basis for the style of the error bar marks
-        self.paramdict_name : parameter dictionary for making fits; prefits, etc
         """
         self.yaxis_name = "y"
         self.err_name = "err" 
@@ -139,8 +138,16 @@ class MainWindow(QtGui.QMainWindow):
         self.errorbar_item_name = "errorbar_item"
         self.pen_name = "pen"
         self.errorbar_pen_name = "errpen"
-        self.paramdict_name = "paramdict"
         self.fitmodel_instance_name = "fitmodel"
+
+        self.all_instance_attribute_names = [self.yaxis_name,
+                self.err_name,
+                self.plot_line_name,
+                self.fitplot_line_name,
+                self.errorbar_item_name,
+                self.pen_name,
+                self.errorbar_pen_name,
+                self.fitmodel_instance_name]
 
         self.x = [] # This is the x-axis for all plots
         # NOTE: Maybe we will have to change this so that plots with different 
@@ -428,6 +435,8 @@ class MainWindow(QtGui.QMainWindow):
             result = [np.array(arg) for arg in args]
             return result
 
+    # This function is for real-time plotting of data points, 
+    #just as they come in through TCP/IP
     def generate_plot_pointbypoint(self,datapoint):
         """
         data points are supposed to be sent as tuples in the format (x_val,[y1_val,y2_val,...],[y1_err,y2_err,...]). If the length of the tuple is 3, we have error bars, if the length of the tuple is 2, we do not have error bars
@@ -514,20 +523,18 @@ class MainWindow(QtGui.QMainWindow):
         if data_line_name_string == "all":
             self.x = []
             for idx in range(MAX_CURVES):
-                if hasattr(self,self.yaxis_name+f"{idx}"):
-                    setattr(self,self.yaxis_name+f"{idx}",[])
-                else:
-                    break
-            for idx in range(MAX_CURVES):
-                if hasattr(self,self.err_name+f"{idx}"):
-                    setattr(self,self.err_name+f"{idx}",[])
-                else:
-                    break
+                for attr_name in self.all_instance_attribute_names:
+                    if hasattr(self,attr_name+"{:d}".format(idx)):
+                        delattr(self,attr_name+"{:d}".format(idx))
+                    else:
+                        pass
             self.clear_plot("")
             self.num_datasets = 0
             self.PlotNumberChoice.clear()
             return None
+        # TODO maybe implement the idea of deleting curves one by one
         else:
+            return None # for now, so that it doesn't fail
             try:
                 curve_to_delete = int(data_line_name_string)
                 if hasattr(self,self.yaxis_name+f"{curve_to_delete}"):
@@ -548,7 +555,37 @@ class MainWindow(QtGui.QMainWindow):
         self.graphWidget.setLabels(bottom=axis_labels[0],left=axis_labels[1])
     def set_plot_title(self,plotTitle):
         self.graphWidget.setTitle(title=plotTitle)
+    # TODO write the correct function for setting the legends
+    def set_plot_legend(self,legendlabels):
+        pass
+    
 
+    def set_fit_function(self,fitfunctionname):
+        if isinstance(fitfunctionname,str):
+            fitfunction_index = self.FitFunctionChoice.findText(fitfunctionname)
+            if fitfunction_index > -1:
+                self.FitFunctionChoice.setCurrentIndex(fitfunction_index)
+            else:
+                print("Message from Class {:s} function set_fit_function: fit function name {} does not exist. Check also if the curves are registered".format(self.__class__.__name__,fitfunctionname))
+    def set_curve_number(self,curvenumber_str):
+        # First, we check if the curve number is sensible
+        try:
+            curve_num_int = int(curvenumber_str)
+            if curve_num_int < 0:
+                print("Message from Class {:s} function set_curve_number: You are trying to set a negative curve number. This is impossible".format(self.__class__.__name__))
+                return None
+        except:
+            print("Message from Class {:s} function set_curve_number: You are trying to set a non-integer curve number. This is impossible".format(self.__class__.__name__))
+            return None
+
+        # We have to register the available curves, so that 
+        #we can choose
+        self.register_available_curves()
+        curvenumber_index = self.PlotNumberChoice.findText(curvenumber_str)
+        if curvenumber_index > -1:
+            self.PlotNumberChoice.setCurrentIndex(curvenumber_index)
+        else:
+            print("Message from Class {:s} function set_curve_number: curve number {} does not exist. Check also if the curves are registered".format(self.__class__.__name__,curvenumber_str))
 
     def buttonHandler(self,textmessage="blahblahblah"): # we can get the arguments in using functools.partial, or better take no arguments
         print(textmessage)
