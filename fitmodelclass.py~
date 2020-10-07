@@ -14,8 +14,6 @@ import mathfunctions.fitmodels as fitmodels
 
 class Fitmodel:
     def __init__(self,fitfunction_name,fitfunction_number,x_axis_vals,measured_data,errorbars_in = None):
-        #TODELETE
-        print("Errorbars_in Fitmodel (sorted): ",np.sort(errorbars_in))
         
         self.fitfunction_name_string = fitfunction_name
         self.fit_function_number = fitfunction_number
@@ -40,6 +38,7 @@ class Fitmodel:
         self.fit_function_paramdict = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
         self.fit_function_paramdict_prefit = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
         self.fit_function_paramdict_bounds = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
+        self.fit_result_fulloutput = None
 
         self.do_prefit()
     
@@ -136,8 +135,6 @@ class Fitmodel:
         if (self.errorbars.shape[0] != self.xvals.shape[0]):
             print("Message from Class {:s} function checkandsetData: length of the errorbars and xvals and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
             return False
-        #TODELETE
-        print("Err from checkandsetData (sorted): ",np.sort(self.errorbars))
         return True # if we got to this point, there is no error, so we can return True
 
     def sortDataByXaxis(self):

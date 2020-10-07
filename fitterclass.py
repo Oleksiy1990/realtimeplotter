@@ -19,38 +19,17 @@ import helperfunctions
 #import matplotlib.pyplot as plt
 
 class GeneralFitter1D:
-    def __init__(self,xvals=None,yvals=None,errorbars=None):
+    def __init__(self,fitmodel):
+        self.fitmodel_input = fitmodel
+        self.isSetupFitSuccessful = True
+        self.optimizer = sopt.least_squares
         """
         All inputs must be either 1D lists or 1D numpy arrays, not anything else. errorbars must be either 1D list or 1D numpy array, or left as none, in which case it will simply be initialized to an array filled with all 1. 
         the __init__ function checks that all inputs are as specified, and returns None if there is any error involved
         """
-        
-    def cropData(self,cropping_bounds = None):
-        if not self.okToFit:
-            print("Warning message from Class {:s} function cropData: okToFit parameter is False. Something was wrong with the data you provided, check previous error messages. Not cropping".format(self.__class__.__name__))
-            return None
-        if cropping_bounds is None:
-            print("Warning message from Class {:s} function cropData: you did not provide cropping bounds. Function cannot be applied".format(self.__class__.__name__))
-            return None
-        if isinstance(cropping_bounds,list):
-            cropping_bounds_numpy = np.array(cropping_bounds)
-        elif isinstance(cropping_bounds,np.ndarray):
-            cropping_bounds_numpy = cropping_bounds
-        else: 
-            print("Message from class {:s} function cropData: croppings bounds must be either a list or a 1D numpy array. Not cropping")
-            return None
-        if (len(cropping_bounds_numpy.shape) != 1) or (cropping_bounds_numpy.shape[0] != 2):
-            print("Message from class {:s} function cropData: croppings bounds must a 1D list or array of length = 2. Not cropping")
-            return None
-
-        # The cropping procedure itself
-        self.xvals = self.xvals[self.xvals > cropping_bounds_numpy[0]]
-        self.xvals = self.xvals[self.xvals < cropping_bounds_numpy[1]]
-        self.yvals = self.yvals[self.xvals > cropping_bounds_numpy[0]]
-        self.yvals = self.yvals[self.xvals < cropping_bounds_numpy[1]]
-        self.errorbars = self.errorbars[self.xvals > cropping_bounds_numpy[0]]
-        self.errorbars = self.errorbars[self.xvals < cropping_bounds_numpy[1]]
-
+    
+    # TODO Get this to work in order to use different possible 
+    #scipy fitting routines
     def setupFit(self,**kwargs):
         """
         Here we establish and (ideally) check all the options to be sent to the fitting method. We give all those options as keyword arguments.
@@ -60,47 +39,6 @@ class GeneralFitter1D:
         kwargs_list = []
         function_name = None
         self.isSetupFitSuccessful = False
-
-
-        key = "fitfunction" # this is just the mathematical function that has to be fitted
-        if key in kwargs:
-            kwargs_list.append(key)
-            if kwargs[key] in ["sine","sinewave","sinusoidal"]:
-                function_name = "sinewave"
-            elif kwargs[key] in ["damped_sine","decay_sine","damped_sinusoidal"]:
-                function_name = "damped_sinewave"
-            else: 
-                print("Error: incorrect value for {:s} in setupFit. Fitting impossible".format(key))
-                errorExists = True
-                return False
-        else:
-            print("Argument {:s} is not given in setupFit. Fitting impossible".format(key))
-            errorExists = True
-            return False
-        self.fitfunction = getattr(mdl,function_name+"_e")
-        self.fitfunctionBase = getattr(mdl,function_name+"_base")
-        
-
-        key = "initialparams" # this must be a list in the correct form 
-        self.initialparams = None
-        init_param_generator = getattr(mdl,function_name+"_prefit")
-        init_param_generator_result = init_param_generator(self.xvals,self.yvals,self.errorbars)
-        if key in kwargs:
-            kwargs_list.append(key)
-            check_func = getattr(mdl,function_name + "_check")
-            try:
-                check_init_param = check_func(kwargs[key])
-                if check_init_param:
-                    self.initialparams = np.array(kwargs[key])
-                    self.params_bounds = np.array(init_param_generator_result[1])
-            except TypeError:
-                print("Warning from setupFit: Initial parameters to fit function {:s} are not a list. Ignoring given initial parameters and using automatically generated ones".format(function_name))
-                self.initialparams = np.array(init_param_generator_result[0])
-                self.params_bounds = np.array(init_param_generator_result[1])
-        if self.initialparams is None:
-            print("Note from setupFit: no initial parameters given, using prefit to automatically generate initial parameters")
-            self.initialparams = np.array(init_param_generator_result[0])
-            self.params_bounds = np.array(init_param_generator_result[1])
 
         key = "fitroutine" # This could be least squares, or things like differential evolution, etc.
         if key in kwargs:
@@ -122,10 +60,6 @@ class GeneralFitter1D:
                 self.optimizer_method = "lm" # see scipy.optimize.least_squares
             elif kwargs[key] in ["trf"]:
                 self.optimizer_method = "trf"
-      
-            
-
-
         for key in list(kwargs.keys()):
             if key not in kwargs_list:
                 print("Warning: wrong keyword argument {:s} given in setupFit. Ignoring it".format(key))
@@ -138,25 +72,40 @@ class GeneralFitter1D:
             return True
 
     def doFit(self):
-        if not self.okToFit:
-            print("Message from Class {:s} function doFit: okToFit is false. No fitting".format(self.__class__.__name__))
-            return None
+        
         if not self.isSetupFitSuccessful:
             print("Message from Class {:s} function doFit: function setupFit in the same class was not successful. Fitting impossible".format(self.__class__.__name__))
             return None
-        optimization_output = self.optimizer(self.fitfunction,self.initialparams,
-                args = (self.xvals,self.yvals,self.errorbars),
-                bounds=(self.params_bounds[:,0],self.params_bounds[:,1]),
+
+        self.fitmodel_input.do_prefit() # This will refresh all the bounds based on 
+        #the inputs in the prefit dialog, and also do the prefit itself if there's None
+        #as any of the values in the prefit dictionary
+
+        lowerbounds_list = [self.fitmodel_input.fit_function_paramdict_bounds[key][0] for key in self.fitmodel_input.fit_function_paramdict_prefit.keys()]
+        upperbounds_list = [self.fitmodel_input.fit_function_paramdict_bounds[key][1] for key in self.fitmodel_input.fit_function_paramdict_prefit.keys()]
+        #TODELETE
+        print("Prefit paramdict initial input into doFit: ",list(self.fitmodel_input.fit_function_paramdict_prefit.values()))
+        optimization_output = self.optimizer(self.fitmodel_input.fit_function,
+                list(self.fitmodel_input.fit_function_paramdict_prefit.values()),
+                args = (self.fitmodel_input.xvals,
+                        self.fitmodel_input.yvals,
+                        self.fitmodel_input.errorbars),
+                bounds=(lowerbounds_list,upperbounds_list),
                 loss="linear",f_scale=1) 
         self.optimizationResult = optimization_output
-        return optimization_output
+        if self.optimizationResult.success is True:
+            # we first want to fill the dictionary in the model with fit results
+            fitmodel_dictkeylist = list(self.fitmodel_input.fit_function_paramdict_prefit.keys())
+            for (idx,key) in enumerate(fitmodel_dictkeylist):
+                self.fitmodel_input.fit_function_paramdict[key] = self.optimizationResult.x[idx]
+
+            self.fitmodel_input.fit_result_fulloutput = self.optimizationResult
+            return True
+        else:
+            # if the fit is wrong, it makes sense that the fit result output is None
+            self.fitmodel_input.fit_result_fulloutput = None
+            return False
    
-
-    def plotFit(self,pyqtgraph_plotwidget,linestyle = "--"):
-        aXvalsDense = np.linspace(np.min(self.xvals),np.max(self.xvals),350)
-        pyqtgraph_plotwidget.plot(aXvalsDense,self.fitfunctionBase(self.optimizationResult.x,aXvalsDense),pen="k")
-
-    
     def __del__(self):
         print("Closing {:s} class instance".format(self.__class__.__name__))
 
@@ -541,6 +490,33 @@ class PhononFitter:
         plt.show()
         plt.close()
 
+class OldFunctions:
+
+    def cropData(self,cropping_bounds = None):
+        if not self.okToFit:
+            print("Warning message from Class {:s} function cropData: okToFit parameter is False. Something was wrong with the data you provided, check previous error messages. Not cropping".format(self.__class__.__name__))
+            return None
+        if cropping_bounds is None:
+            print("Warning message from Class {:s} function cropData: you did not provide cropping bounds. Function cannot be applied".format(self.__class__.__name__))
+            return None
+        if isinstance(cropping_bounds,list):
+            cropping_bounds_numpy = np.array(cropping_bounds)
+        elif isinstance(cropping_bounds,np.ndarray):
+            cropping_bounds_numpy = cropping_bounds
+        else: 
+            print("Message from class {:s} function cropData: croppings bounds must be either a list or a 1D numpy array. Not cropping")
+            return None
+        if (len(cropping_bounds_numpy.shape) != 1) or (cropping_bounds_numpy.shape[0] != 2):
+            print("Message from class {:s} function cropData: croppings bounds must a 1D list or array of length = 2. Not cropping")
+            return None
+
+        # The cropping procedure itself
+        self.xvals = self.xvals[self.xvals > cropping_bounds_numpy[0]]
+        self.xvals = self.xvals[self.xvals < cropping_bounds_numpy[1]]
+        self.yvals = self.yvals[self.xvals > cropping_bounds_numpy[0]]
+        self.yvals = self.yvals[self.xvals < cropping_bounds_numpy[1]]
+        self.errorbars = self.errorbars[self.xvals > cropping_bounds_numpy[0]]
+        self.errorbars = self.errorbars[self.xvals < cropping_bounds_numpy[1]]
 
 
 

@@ -115,7 +115,6 @@ def config_interpreter(fullmessage = ""):
     if len(message_parts_list) > 0:
         print("Warning from function config_interpreter: you probably made mistakes in the syntax of some commands. There are commands that you sent and that could not be parsed: {}".format(message_parts_list))
 
-    return output_command_list
     if len(output_command_list) > 0:
         return output_command_list
     else:    
@@ -187,3 +186,4 @@ def process_setPlotLegend(input_pattern_raw_string,message_parts_list):
 
 
 if __name__ == "__main__":
+    pass
