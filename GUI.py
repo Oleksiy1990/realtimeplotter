@@ -47,7 +47,9 @@ class WorkerSignals(QtCore.QObject):
     newdata = QtCore.pyqtSignal(str)
 
 class TCP_IP_Worker(QtCore.QRunnable):
+    # this is to process TCP/IP requests in Threads
     def __init__(self, listener_fn):
+        # listener_fn is the function which will be called in the thread
         super().__init__()
         # Store constructor arguments (re-used for processing)
         self.fn = listener_fn
@@ -56,13 +58,14 @@ class TCP_IP_Worker(QtCore.QRunnable):
     @QtCore.pyqtSlot()
     def run(self):
         try:
-            self.fn(self.signals.newdata)
-        except:
+            self.fn(self.signals.newdata) 
+            # Ok so newdata is the stuff that we feed into the listener function
+        except: # Ok this is if something doesn't work, error message
             traceback.print_exc()
             exctype, value = sys.exc_info()[:2]
             self.signals.error.emit((exctype, value, traceback.format_exc()))
 
-
+# This class is an example from a tutorial, it is NOT used!
 class Worker(QtCore.QRunnable):
     '''
         Worker thread

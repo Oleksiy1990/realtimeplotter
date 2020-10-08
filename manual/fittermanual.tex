@@ -30,6 +30,9 @@
 \usepackage{verbatim} % adds environment for commenting out blocks of text & for better verbatim
 \usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
 % These packages are all incorporated in the memoir class to one degree or another...
+\usepackage{tcolorbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
 
 %%% HEADERS & FOOTERS
 \usepackage{fancyhdr} % This should be set AFTER setting up the page geometry
@@ -61,10 +64,131 @@
 \begin{document}
 \maketitle
 
-\section{Basic principles and governing ideas}
+\section{Basic principles, design philosophy, and governing ideas}
+
+\section{TCP/IP commands}
+
+All commands must be sent as character strings in utf-8 encoding for now (if that's impossible, one could implement ascii encoding/decoding procedure). Most of the times, commands must be separated with a semicolon [;]. Different options within a single command must be separated with a comma [,]. 
+
+Before any commands can be sent, one needs to write down the IP address and the port of the computer where the server is running. If the server is running on the same computer as the client, the IP address will be [127.0.0.1]. The port can basically be chosen at will, as long as its value is a large number, beyond the range of the standard reserved ports. One also has to establish the buffer size for communication, but that does not matter mostly. A common value is [2048], which corresponds to 2048 bytes.
+
+Most of the commands do not require or expect a response from the server. They are in a sense a one-way communication. The box below shows the general setup of sending commands to the plotter, assuming that they are sent from Python. The goal is to make this a general-purpose plotter and fitter server, so since it works with TCP/IP, it doesn't really matter which programming language the commands are sent from, Python is only an example 
+\begin{tcolorbox}[title=General approach to sending commands]
 
 
-Your text goes here.
+{\fontfamily{pcr}\selectfont import socket}
+
+{\fontfamily{pcr}\selectfont s = socket.socket(socket.AF\_INET, socket.SOCK\_STREAM)}
+
+{\fontfamily{pcr}\selectfont s.connect((HOST, PORT))}
+
+{\fontfamily{pcr}\selectfont message\_string = ``my favorite message''}
+
+{\fontfamily{pcr}\selectfont message = my\_information.encode("utf-8",errors="ignore")}
+
+{\fontfamily{pcr}\selectfont sendres = s.sendall(message)}
+
+{\fontfamily{pcr}\selectfont s.close()}
+\\
+
+The most important idea here is that one must close the socket communication after sending every message. Sockets are recycled. 
+ 
+\end{tcolorbox}
+
+One class of commands sends data to the plotter. The result will be that the points are plotted on the main plotter canvas. The following box provides the list of these commands.
+
+\begin{tcolorbox}[title=Sending data point by point]
+
+Sending data without error bars: 
+\\
+
+{\fontfamily{pcr}\selectfont listdata errorbar\_no xx.xxxxx vv.vvvvv vv.vvvvv  $...$}
+\\
+
+Here, [x], [v] refer to the digits of the numbers representing the x-axis and the values respectively. The x-axis can be anything, for example time. one has to put at most 6 digits after the comma. Each value [vv.vvvvv] will correspond to a curve on the plot. The number of values, and consequently the number of curves, can be whatever. However, you have to always send the same number of curves, once you started sending that number. For example, if you started sending 2 curves, keep sending always two curves until you clear data, otherwise you will generate an error. 
+\\
+
+Sending data with error bars:
+\\
+
+{\fontfamily{pcr}\selectfont listdata errorbar\_yes xx.xxxxx vv.vvvvv ee.eeeee vv.vvvvv ee.eeeee  $...$}
+\\
+
+Here, [x], [v], [e] refer to the digits of the numbers representing the x-axis, the values, and the corresponding error bars respectively. The x-axis can be anything. Each combination [vv.vvvvv ee.eeeee] will correspond to a curve on the plot. One must always feed values with error bars, in other words one cannot plot one curve with error bars and one curve without, that will generate an error, and one must always send the same number of curves unless one has cleared the plot and starts plotting again. 
+
+\end{tcolorbox}
+
+After one is done with plotting, and possibly fitting, etc., one has to clear the plots and the memory for the next set of data to be sent, plotted, and processed. That can be achieved with the [clear\_data] command:
+
+\begin{tcolorbox}[title=Clearing data plot and fit results]
+
+{\fontfamily{pcr}\selectfont config; clear\_data all}
+\\
+
+For now, only [all] is implemented, but the idea is to implement the possibility of clearing one particular curve without touching the other ones.
+\end{tcolorbox}
+
+We can also transmit plot parameters, such as axes labels, plot title, legend, via TCP/IP. In addition, we can send the function choice for fitting, starting parameters for the fit, and the request to do the fit. All of these are \textbf{configuration commands}, which can be sent in a string starting with [config].
+
+\begin{tcolorbox}[title=Configuration command string (config)]
+
+At the beginning of the command string we always write:
+\\
+
+{\fontfamily{pcr}\selectfont config;}
+\\
+
+From then on, the following commands are defined: 
+\\
+
+{\fontfamily{pcr}\selectfont set\_axis\_labels myXlabel, myYlabel}
+
+myXlabel and myYlabel and the text that will label the axes
+\\
+
+{\fontfamily{pcr}\selectfont set\_plot\_title myPlotTitle}
+
+myPlotTitle will be written above the plot area
+\\
+
+{\fontfamily{pcr}\selectfont set\_fit\_function fitfunctionname}
+
+fitfunctionname must exactly match one of the defined fit functions in file mathfunctions/fitmodels.py
+\\
+
+{\fontfamily{pcr}\selectfont set\_curve\_number number}
+
+number is the number (string) of one of the curves that has been sent to the plotter. See the box above about sending data point by point, the first point would correspond to number being 0, the second point corresponds to number being 1, etc. 
+\\
+
+{\fontfamily{pcr}\selectfont set\_starting\_parameters param1name : value1 , param2name : value2, ...}
+
+\textbf{Not yet implemented fully}
+These parameters are what is given in the parameter dictionary of the fit function, which is in mathfunctions/fitmodels.py The names of the parameters must be written exactly as in that parameter dictionary, otherwise it will produce errors. The fitter will take these parameters as initial values.  
+\\
+
+{\fontfamily{pcr}\selectfont do\_fit}
+
+\textbf{Not yet implemented fully}
+This will perform the fit and display the graph on top of the data points
+\\
+
+The commands can be sent in any order, separated by semicolons. So a valid command string would be like 
+
+{\fontfamily{pcr}\selectfont config; set\_axis\_labels myX1, myY1; set\_plot\_title myCoolData; ... }
+
+where ... refers to additional commands. It is also ok to send command strings separately, they are processed as they come in, so for example one can send like 
+
+{\fontfamily{pcr}\selectfont config; set\_axis\_labels myX1, myY1; set\_plot\_title myCoolData; ... }
+
+{\fontfamily{pcr}\selectfont config; set\_fit\_function sinewave; set\_curve\_number 0; do\_fit}
+
+Remember that each of the commands has to be sent as a separate session of TCP/IP communication. The thing though is that it's better to send the whole command statement as a single string, because otherwise one can run into problems if one for example calls [do\_fit] before setting the curve number, and so on. 
+
+\end{tcolorbox}
+
+
+
 \subsection{A subsection}
 
 More text.

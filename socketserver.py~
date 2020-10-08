@@ -26,6 +26,7 @@ class TCPIPserver():
             if not data: 
                 break
             full_message += data
+        socket_in.sendall("yes".encode("utf-8"))
         socket_in.close()
         self.output_refreshed = True
         result = full_message.decode(encoding = encoding)
@@ -34,6 +35,7 @@ class TCPIPserver():
         #self.message_parser(self.data_output)
         #print("Here is the output: ",self.data_output)
 
+    # TODELETE This is NOT used
     def message_parser(self):
         if len(self.data_output) == 0:
             print("Message from Class {:s} function message_parser: apparently no message received, length of message string is 0. Not doing anything".format(self.__class__.__name__))
@@ -79,6 +81,18 @@ class TCPIPserver():
             print("Received connection from port {}".format(address))
             comm_processing_thread = Thread(target = self.clientsocket_parser,args = (clientsocket,),daemon=True)
             comm_processing_thread.start()
+    
+    def listener_function_Qt(self,newdata_signal):
+        self.serversocket.listen(self.numconnections)
+        while True:
+            # accept connections from outside
+            print("TCPIP server waiting for connections")
+            (clientsocket, address) = self.serversocket.accept()
+            
+            # now do something with the clientsocket
+            print("Received connection from port {}".format(address))
+            result = self.clientsocket_parser(clientsocket)
+            newdata_signal.emit(result)
 
     def __del__(self):
         self.serversocket.close()

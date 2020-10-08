@@ -20,6 +20,7 @@ class TCPIPserver():
         self.emit_data_immediately = True
 
     def clientsocket_parser(self,socket_in,encoding = "utf-8"):
+        # first create an empty string, to which we will be adding data to save the full message
         full_message = "".encode("utf-8")
         while True:
             data = socket_in.recv(self.buffersize)
@@ -35,6 +36,7 @@ class TCPIPserver():
         #self.message_parser(self.data_output)
         #print("Here is the output: ",self.data_output)
 
+    # TODELETE This is NOT used
     def message_parser(self):
         if len(self.data_output) == 0:
             print("Message from Class {:s} function message_parser: apparently no message received, length of message string is 0. Not doing anything".format(self.__class__.__name__))
@@ -89,7 +91,6 @@ class TCPIPserver():
             (clientsocket, address) = self.serversocket.accept()
             
             # now do something with the clientsocket
-            #print(type(address))
             print("Received connection from port {}".format(address))
             result = self.clientsocket_parser(clientsocket)
             newdata_signal.emit(result)
