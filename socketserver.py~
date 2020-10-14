@@ -16,24 +16,25 @@ class TCPIPserver():
         self.serversocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.serversocket.bind((HOST,PORT))
         self.data_output = ""
-        self.output_refreshed = False
         self.emit_data_immediately = True
 
     def clientsocket_parser(self,socket_in,encoding = "utf-8"):
+        """
+        This function gets the incoming socket, receives the bytes, and 
+        returns the string representation of the incoming message
+        """
+        # first create an empty string, to which we will be adding data to save the full message
         full_message = "".encode("utf-8")
+
         while True:
             data = socket_in.recv(self.buffersize)
             if not data: 
                 break
             full_message += data
-        socket_in.sendall("yes".encode("utf-8"))
         socket_in.close()
-        self.output_refreshed = True
         result = full_message.decode(encoding = encoding)
         self.data_output = result
         return result
-        #self.message_parser(self.data_output)
-        #print("Here is the output: ",self.data_output)
 
     # TODELETE This is NOT used
     def message_parser(self):
@@ -60,15 +61,6 @@ class TCPIPserver():
             return True
         
 
-    def return_data(self):
-        self.output_refreshed = False
-        return self.data_output
-
-    def is_output_refreshed(self):
-        return self.output_refreshed
-
-    #output_tuple = (False,"")
-
     def listener_function(self):
         self.serversocket.listen(self.numconnections)
         while True:
@@ -91,8 +83,8 @@ class TCPIPserver():
             
             # now do something with the clientsocket
             print("Received connection from port {}".format(address))
-            result = self.clientsocket_parser(clientsocket)
-            newdata_signal.emit(result)
+            received_msg_string = self.clientsocket_parser(clientsocket)
+            newdata_signal.emit(received_msg_string)
 
     def __del__(self):
         self.serversocket.close()

@@ -65,7 +65,7 @@ class TCP_IP_Worker(QtCore.QRunnable):
             exctype, value = sys.exc_info()[:2]
             self.signals.error.emit((exctype, value, traceback.format_exc()))
 
-# This function is an example from a tutorial, it is NOT used!
+# This class is an example from a tutorial, it is NOT used!
 class Worker(QtCore.QRunnable):
     '''
         Worker thread
@@ -601,9 +601,17 @@ def runPlotter(sysargs):
 
     HOST = "127.0.0.1"
     #HOST = "134.93.88.156"
+    
+    # this is the server for one-way communication, no responses
     PORT = 5757
     myServer = TCPIPserver(HOST,PORT)
     
+    # We want to call this server for two-way communication to send back
+    #fit results
+    #PORT_TWOWAY = PORT + 1
+    #myServerTwoway = TCPIPserver(HOST,PORT_TWOWAY)
+
+
     app = QtWidgets.QApplication(sysargs)
     w = MainWindow(myServer)
     #w.show()

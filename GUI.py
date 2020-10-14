@@ -197,7 +197,7 @@ class MainWindow(QtGui.QMainWindow):
         
         self.FitFunctionChoice = QtGui.QComboBox()
         self.PlotNumberChoice = QtGui.QComboBox()
-        self.FitFunctionChoice.addItems(["None","sinewave","damped_sine"])
+        self.FitFunctionChoice.addItems(["None","sinewave","damped_sinewave"])
         # self.PlotNumberChoice.addItems should be called in the code in order to create a choice which plot to fit 
         MakeFitBoxLayout = QtGui.QHBoxLayout()
         MakeFitBoxLayout.addWidget(self.MakeFitButton)
@@ -601,9 +601,17 @@ def runPlotter(sysargs):
 
     HOST = "127.0.0.1"
     #HOST = "134.93.88.156"
+    
+    # this is the server for one-way communication, no responses
     PORT = 5757
     myServer = TCPIPserver(HOST,PORT)
     
+    # We want to call this server for two-way communication to send back
+    #fit results
+    #PORT_TWOWAY = PORT + 1
+    #myServerTwoway = TCPIPserver(HOST,PORT_TWOWAY)
+
+
     app = QtWidgets.QApplication(sysargs)
     w = MainWindow(myServer)
     #w.show()
