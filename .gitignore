@@ -1,0 +1,14 @@
+# Ignore the files related to VIM internals
+*.un~
+*.swp
+*.py~
+
+# Ignore generated files from LaTeX
+*.aux
+*.gz
+*.log
+
+# Ignore other random generated files
+*.png
+*.dat
+*.plt
