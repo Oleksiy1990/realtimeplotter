@@ -640,3 +640,4 @@ class OldFunctions:
 
 if __name__ == "__main__":
     runPlotter(sys.argv)
+    # TEST
