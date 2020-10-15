@@ -16,31 +16,52 @@ if doClearData:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((HOST, PORT))
     my_information = "config; clear_data all"
-    message = my_information.encode("utf-8",errors="ignore")
-    sendres = s.sendall(message)
+    message_encoded = my_information.encode("utf-8",errors="ignore")
+    message_length = len(message_encoded)
+    preamble = "{:08d}".format(message_length)
+    preamble_encoded = preamble.encode("utf-8",errors="ignore")
+    full_message = preamble_encoded + message_encoded
+    
+    sendres = s.sendall(full_message)
+    
+    endmessage_str = "{:08d}".format(0)
+    print(endmessage_str)
+    endmessage_bytes = endmessage_str.encode("utf-8",errors="ignore")
+    s.sendall(endmessage_bytes)
     s.close()
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect((HOST, PORT))
 
 while True:
     val = ranf()*30
     val_random_error = ranf()*0.5
     val_random_errorbar = ranf()*0.5
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((HOST, PORT))
+    
     #my_information = "listdata errorbar_no {:.03f} {:.03f} {:.03f}".format(q,q/5,q/10)
     #my_information = "listdata errorbar_yes {:.03f} {:.03f} {:.03f}".format(val,np.sin(val),val/10)
     my_information = "listdata errorbar_yes {:.03f} {:.03f} {:.03f} {:.03f} {:.03f}".format(val,np.sin(val)+val_random_error,val_random_errorbar,np.sin(val/2)+val_random_error,val_random_errorbar)
     #my_information = "listdata errorbar_no {:.03f} {:.03f} {:.03f} {:.03f}".format(val,np.sin(val),val/10,np.log(val))
     
     #my_information2 = "What's up here?"
-    message = my_information.encode("utf-8",errors="ignore")
-    sendres = s.sendall(message)
+    message_encoded = my_information.encode("utf-8",errors="ignore")
+    message_length = len(message_encoded) # 1 is for the space before the actual data
+    print("Data message length: ",message_length)
+    preamble = "{:08d}".format(message_length)
+    preamble_encoded = preamble.encode("utf-8",errors="ignore")
+    full_message = preamble_encoded + message_encoded
     
-    s.close()
+    sendres = s.sendall(full_message)
+    
+    #s.close()
     q += 1
     time.sleep(0.01)
     
     if q > 50:
         break
+
+s.close()
+sys.exit()
 
 message_str = "config;"
 doSetPlotTitle = True

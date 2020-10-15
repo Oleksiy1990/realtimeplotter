@@ -17,24 +17,65 @@ class TCPIPserver():
         self.serversocket.bind((HOST,PORT))
         self.data_output = ""
         self.emit_data_immediately = True
+        self.reportedLengthMessage = True
+
 
     def clientsocket_parser(self,socket_in,encoding = "utf-8"):
         """
         This function gets the incoming socket, receives the bytes, and 
         returns the string representation of the incoming message
         """
-        # first create an empty string, to which we will be adding data to save the full message
-        full_message = "".encode("utf-8")
+        if self.reportedLengthMessage is True:
+            NUM_BYTES_PREFACE = 8
+            preface_bytes = socket_in.recv(NUM_BYTES_PREFACE)
+            preface_str = preface_bytes.decode(encoding = encoding)
+            #TODELETE
+            print("clientsocket_parser: preface_str: ",preface_str)
+            try:    
+                message_length = int(preface_str)
+                #TODELETE
+                print("clientsocket_parser: message_length = ",message_length)
+                if message_length == 0: # this signifies that communication is finished in this session
+                    #TODELETE
+                    print("clientsocket_parser: message_length = 0, closing the socket")
+                    socket_in.close()
+                    return "Done"
+            except:
+                print("Message from Class {:s} function clientsocket_parser: number of bytes of message cannot be converted to integer. Not reading any messages and not doing anything.".format(self.__class__.__name__))
+                socket_in.close()
+                return "" # we just return an empty string in this case
+            
+            full_message_bytes = "".encode("utf-8")
 
-        while True:
-            data = socket_in.recv(self.buffersize)
-            if not data: 
-                break
-            full_message += data
-        socket_in.close()
-        result = full_message.decode(encoding = encoding)
-        self.data_output = result
-        return result
+            # this loop receives the message in chunks, of length at most self.buffersize
+            while True:
+                if (message_length <= self.buffersize):
+                    data_bytes = socket_in.recv(message_length)
+                    full_message_bytes += data_bytes
+                    break
+                else:
+                    data_bytes = socket_in.recv(self.buffersize)
+                    full_message_bytes += data_bytes
+                    message_length -= self.buffersize # we subtract the number of already received bytes
+
+            #socket_in.close()
+            result = full_message_bytes.decode(encoding = encoding)
+            self.data_output = result
+            return result
+        # now we tell what to do if the message length is not reported in advance
+        #the only option in this case is that the other side closes the connection when the message is finished
+        else:
+            # first create an empty string, to which we will be adding data to save the full message
+            full_message_bytes = "".encode("utf-8")
+            while True:
+                data_bytes = socket_in.recv(self.buffersize)
+                if not data_bytes: # we stop receiving the message when the other side closed the connection
+                    break
+                full_message_bytes += data_bytes
+            socket_in.close()
+            result = full_message_bytes.decode(encoding = encoding)
+            self.data_output = result
+            return result
 
     # TODELETE This is NOT used
     def message_parser(self):

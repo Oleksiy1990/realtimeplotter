@@ -7,11 +7,19 @@ Created on Mon Aug 24 14:27:15 2020
 
 import re
 
-def message_interpreter(message = ""):
+def message_interpreter(message_in = ""):
    
-    if len(message) == 0:
+    if len(message_in) == 0:
         print("Function message_interpreter: apparently no message received, length of message string is 0. Not doing anything")
-        return [("nofunction",message)]
+        return [("nofunction",message_in)]
+    
+    # we first get rid of any leading and trailing whitespace
+    message = message_in.strip()
+    
+    # This is just to handle what happens when the client is done sending
+    #messages
+    if message == "Done":
+        return []
     
     # define regular expression patterns for reading data that includes 
     #or does not include error bars. Make sure to send data as floats, scientific 
