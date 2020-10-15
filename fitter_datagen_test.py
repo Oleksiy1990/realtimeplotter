@@ -58,6 +58,9 @@ while True:
     time.sleep(0.01)
     
     if q > 50:
+        preamble = "{:08d}".format(0)
+        preamble_encoded = preamble.encode("utf-8",errors="ignore")
+        s.sendall(preamble_encoded)
         break
 
 s.close()
