@@ -58,19 +58,22 @@ while True:
     time.sleep(0.01)
     
     if q > 50:
-        preamble = "{:08d}".format(0)
+        preamble = "{:08d}".format(0) # if we send "00000000", the socket on the other side will be closed
         preamble_encoded = preamble.encode("utf-8",errors="ignore")
         s.sendall(preamble_encoded)
         break
 
 s.close()
-sys.exit()
+#sys.exit()
 
 message_str = "config;"
 doSetPlotTitle = True
 doSetAxisLabels = True
 doSetFitFunction = True
 doSetCurveNumber = True 
+doSetFitParameters = True
+doSetCurveNumber = True
+dofit = True
 
 if doSetPlotTitle:
     message_str = message_str + "set_plot_title My test plot;"
@@ -79,53 +82,26 @@ if doSetAxisLabels:
 if doSetFitFunction:
     message_str = message_str + "set_fit_function sinewave;"     
 if doSetCurveNumber:
-    message_str = message_str + "set_curve_number 1"
-
+    message_str = message_str + "set_curve_number 1;"
+if doSetFitParameters:
+    message_str = message_str + "setstartparams frequency : 0.1, amplitude: 1.0, phase: 0, verticaloffset: 0;"
+if dofit:
+    message_str = message_str + "dofit ;"
+    
 print("Full message: ",message_str)
-message = message_str.encode("utf-8",errors="ignore")
+message_encoded = message_str.encode("utf-8",errors="ignore")
+message_length = len(message_encoded)
+preamble = "{:08d}".format(message_length)
+preamble_encoded = preamble.encode("utf-8",errors="ignore")
+full_message = preamble_encoded + message_encoded
+
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((HOST, PORT))
-sendres = s.sendall(message)
+sendres = s.sendall(full_message)
+
+preamble = "{:08d}".format(0)
+preamble_encoded = preamble.encode("utf-8",errors="ignore")
+s.sendall(preamble_encoded)
 s.close()
 
 sys.exit(0)
-time.sleep(3)
-print("Trying to clear data")
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect((HOST, PORT))
-#my_information = "listdata errorbar_no {:.03f} {:.03f} {:.03f}".format(q,q/5,q/10)
-my_information = "config; clear_data all"
-message = my_information.encode("utf-8",errors="ignore")
-sendres = s.sendall(message)
-#message = my_information2.encode("utf-8",errors="ignore")
-#sendres = s.sendall(message)
-s.close()
-
-sys.exit(0)
-
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect((HOST, PORT))
-#my_information = "listdata errorbar_no {:.03f} {:.03f} {:.03f}".format(q,q/5,q/10)
-my_information = "config; set_axis_labels newx, newy ; setplottitle MyFavoriteTitle"
-message = my_information.encode("utf-8",errors="ignore")
-sendres = s.sendall(message)
-#message = my_information2.encode("utf-8",errors="ignore")
-#sendres = s.sendall(message)
-s.close()
-
-sys.exit(0)
-
-
-time.sleep(5)
-
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect((HOST, PORT))
-#my_information = "listdata errorbar_no {:.03f} {:.03f} {:.03f}".format(q,q/5,q/10)
-my_information = "clear_plot"
-message = my_information.encode("utf-8",errors="ignore")
-sendres = s.sendall(message)
-#message = my_information2.encode("utf-8",errors="ignore")
-#sendres = s.sendall(message)
-#print("Sending message output : ",sendres)
-s.close()
- 

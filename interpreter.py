@@ -234,22 +234,29 @@ def process_setStartingParameters(input_pattern_raw_string,message_parts_list):
         if search_res:
             output_startparam_dict = {}
             full_startparam_string = search_res.group(2).strip()
+            # Next line means: different parameters are supposed to be separated by a comma
             startparam_string_split = full_startparam_string.split(",")
+
             for singleparam_string in startparam_string_split:
-                key_val_pair = singleparam_string.split(":") # key and value are supposed to be separated by a colon
+                # Next line means: key and value are supposed to be separated by a colon
+                key_val_pair = singleparam_string.split(":") 
                 if (len(key_val_pair) != 2):
                     print("Message from file {:s} function process_setStartingParameters: you tried to set this parameter {} but the format is not parameter : value. Ignoring it".format(__file__,key_val_pair))
                     continue
                 else: 
                     key = key_val_pair[0].strip()
                     val = key_val_pair[1].strip()
-                    output_startparam_dict[key] = val
+                try:
+                    val_float = float(val)
+                    output_startparam_dict[key] = val_float
+                except:
+                    print("Message from Module {} function process_setStartingParameter: in entry {}:{} the value {} cannot be converted to float. Not adding this to output dictionary".format(__name__,key,val,val))
             message_parts_list.remove(individual_message)
             return ("set_starting_parameters",output_startparam_dict)
     return None
 
 def process_doFit(input_pattern_raw_string,message_parts_list):
-    full_SetDoFit_pattern = r"({:s})\s+".format(input_pattern_raw_string)
+    full_SetDoFit_pattern = r"({:s})\s*".format(input_pattern_raw_string)
     for individual_message in message_parts_list:
         search_res = re.search(full_SetDoFit_pattern,individual_message)
         if search_res:

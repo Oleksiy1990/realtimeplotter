@@ -40,8 +40,6 @@ class Fitmodel:
         self.fit_function_paramdict_bounds = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
         self.fit_result_fulloutput = None
 
-
-
         self.do_prefit()
     
     def check_paramdict_isfull(self):

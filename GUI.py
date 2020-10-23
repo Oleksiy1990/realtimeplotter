@@ -371,6 +371,8 @@ class MainWindow(QtGui.QMainWindow):
         #this else condition will be used if the fit result is not a success
         else:
             print("Message from Class {:s} function process_MakeFit_button: Fit is not successful, not plotting anything".format(self.__class__.__name__))
+        if self.prefitDialogWindow:
+            self.prefitDialogWindow.close()
         #TODELETE
         print("Fit result dictionary output: ",getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_function_paramdict)
 
@@ -561,8 +563,6 @@ class MainWindow(QtGui.QMainWindow):
     # TODO write the correct function for setting the legends
     def set_plot_legend(self,legendlabels):
         pass
-    
-
     def set_fit_function(self,fitfunctionname):
         if isinstance(fitfunctionname,str):
             fitfunction_index = self.FitFunctionChoice.findText(fitfunctionname)
@@ -580,7 +580,6 @@ class MainWindow(QtGui.QMainWindow):
         except:
             print("Message from Class {:s} function set_curve_number: You are trying to set a non-integer curve number. This is impossible".format(self.__class__.__name__))
             return None
-
         # We have to register the available curves, so that 
         #we can choose
         self.register_available_curves()
@@ -589,6 +588,21 @@ class MainWindow(QtGui.QMainWindow):
             self.PlotNumberChoice.setCurrentIndex(curvenumber_index)
         else:
             print("Message from Class {:s} function set_curve_number: curve number {} does not exist. Check also if the curves are registered".format(self.__class__.__name__,curvenumber_str))
+    
+    def set_starting_parameters(self,parameterdictionary):
+        # we start with doing process_Prefit_button, because it's exactly the same 
+        #function as there, we are supposed to format the data into the correct 
+        #shape, and initialize the prefit dictinoary in order to be 
+        #able to fill it with the suggested starting values
+        self.process_Prefit_button()
+        current_curve_number_string = self.PlotNumberChoice.currentText()
+        for key in parameterdictionary:
+            if key in getattr(self,self.fitmodel_instance_name+current_curve_number_string).fit_function_paramdict_prefit:
+                getattr(self,self.fitmodel_instance_name+current_curve_number_string).fit_function_paramdict_prefit[key] = parameterdictionary[key]
+            else:
+                print("Message from Class {:s} function set_starting_parameters : you input key {} into the parameter dictionary, and the selected fit model is {}. Such a parameter for the selected fit model does not exist. Not setting this parameter".format(self.__class__.__name__,key,self.FitFunctionChoice.currentText()))
+    def do_fit(self,emptystring):
+       self.process_MakeFit_button() 
 
     def buttonHandler(self,textmessage="blahblahblah"): # we can get the arguments in using functools.partial, or better take no arguments
         print(textmessage)

@@ -26,49 +26,59 @@ class TCPIPserver():
         """
         This function gets the incoming socket, receives the bytes, and 
         returns the string representation of the incoming message
+        
+        There are two acceptable approaches to receiving messages on a TCP/IP server:
+        1) adding a preamble of known length to every message, which will tell how many bytes a message has
+        2) closing the connection after having sent a message (on the client side). In this case, one 
+            listens until the read() function returns zero bytes. 
+        In this case, self.reportedLengthMessage detemines whether each message comes with a preamble 
+        telling how many bytes the message will be, or whether the client is expected to close the connection 
+        after sending a full message
         """
+
+        # The case when the message comes with a preamble
         if self.reportedLengthMessage is True:
-            NUM_BYTES_PREFACE = 8
+            NUM_BYTES_PREAMBLE = 8 # Preamble is a string of exactly 8 characters, just at the beginning of the main message
+            # those characters are converted into an integer, which determines how many bytes will be read
+            # Remember that in this case the socket is basically hanging in the while True loop until 00000000 is received
             while True:
-                preface_bytes = socket_in.recv(NUM_BYTES_PREFACE)
-                preface_str = preface_bytes.decode(encoding = encoding)
-                #TODELETE
-                print("clientsocket_parser: preface_str: ",preface_str)
+                preamble_bytes = socket_in.recv(NUM_BYTES_PREAMBLE)
+                preamble_str = preamble_bytes.decode(encoding = encoding)
                 try:    
-                    message_length = int(preface_str)
-                    #TODELETE
-                    print("clientsocket_parser: message_length = ",message_length)
+                    message_length = int(preamble_str)
                     if message_length == 0: # this signifies that communication is finished in this session
-                        #TODELETE
-                        print("clientsocket_parser: message_length = 0, closing the socket")
                         socket_in.close()
-                        newdata_signal.emit("Done")
-                        return None
+                        newdata_signal.emit("Done") # if the communication is finished, is sends "Done" to the main program
+                        return True
                 except:
                     print("Message from Class {:s} function clientsocket_parser: number of bytes of message cannot be converted to integer. Not reading any messages and not doing anything.".format(self.__class__.__name__))
                     socket_in.close()
                     newdata_signal.emit("")
-                    return None # we just return an empty string in this case
+                    return False
                 
                 full_message_bytes = "".encode("utf-8")
 
                 # this loop receives the message in chunks, of length at most self.buffersize
                 while True:
+                    # if message length is less than buffersize, read it in one chunk and leave the loop
                     if (message_length <= self.buffersize):
                         data_bytes = socket_in.recv(message_length)
                         full_message_bytes += data_bytes
                         break
+                    # if message length is greater than buffersize, receive it in chunks
                     else:
                         data_bytes = socket_in.recv(self.buffersize)
                         full_message_bytes += data_bytes
                         message_length -= self.buffersize # we subtract the number of already received bytes
-
+                # Here the data is decoded into a string and sent to the main program via the emit() function, but
+                #note that the code is still sitting in the outer while True loop waiting for 00000000 to exit the function 
                 result = full_message_bytes.decode(encoding = encoding)
-                self.data_output = result
                 newdata_signal.emit(result)
 
-        # now we tell what to do if the message length is not reported in advance
-        #the only option in this case is that the other side closes the connection when the message is finished
+        # this is now the case when the message length is not reported in advance. 
+        #the function exits when the other side (client) closes the communication, which means that the entire 
+        #message has been sent 
+        # This is generally the preferred and cleaner way
         else:
             # first create an empty string, to which we will be adding data to save the full message
             full_message_bytes = "".encode("utf-8")
@@ -79,8 +89,8 @@ class TCPIPserver():
                 full_message_bytes += data_bytes
             socket_in.close()
             result = full_message_bytes.decode(encoding = encoding)
-            self.data_output = result
-            return result
+            newdata_signal.emit(result)
+            return True
 
     # TODELETE This is NOT used
     def message_parser(self):
@@ -129,8 +139,9 @@ class TCPIPserver():
             
             # now do something with the clientsocket
             print("Received connection from port {}".format(address))
-            received_msg_string = self.clientsocket_parser(clientsocket,newdata_signal)
-            #newdata_signal.emit(received_msg_string)
+            isClientSocketParserSuccess = self.clientsocket_parser(clientsocket,newdata_signal)
+            if isClientSocketParserSuccess is False:
+                print("Message from Class {:s} function listener_function_Qt: clientsocket_parser returned False. Check the messages that you are sending to it via TCP/IP.".format(self.__class__.__name__))
 
     def __del__(self):
         self.serversocket.close()
