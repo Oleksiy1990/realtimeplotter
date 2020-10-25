@@ -43,22 +43,28 @@ class WorkerSignals(QtCore.QObject):
     '''
     finished = QtCore.pyqtSignal()
     error = QtCore.pyqtSignal(tuple)
-    result = QtCore.pyqtSignal(object)
+    request_to_main = QtCore.pyqtSignal(object)
     newdata = QtCore.pyqtSignal(str)
 
 class TCP_IP_Worker(QtCore.QRunnable):
-    # this is to process TCP/IP requests in Threads
+    """
+    This is to process TCP/IP requests in Threads
+    
+    Note that the only thing that this really does is to get a listener function 
+    as an argument, it also makes a WorkerSignals() instance, and then it defines a run()
+    method, makes it a slot, and when it's called, it passes the WorkerSignals instance to the listener function
+    """
     def __init__(self, listener_fn):
         # listener_fn is the function which will be called in the thread
         super().__init__()
         # Store constructor arguments (re-used for processing)
         self.fn = listener_fn
-        self.signals = WorkerSignals()
+        self.signals = WorkerSignals() # this maybe should actually be passed as an instance
         
-    @QtCore.pyqtSlot()
-    def run(self):
+    @QtCore.pyqtSlot() # this specifically marks the run() function as a slot
+    def run(self): # it looks like this function is called by QtCore.QThreadPool()
         try:
-            self.fn(self.signals.newdata) 
+            self.fn(self.signals) 
             # Ok so newdata is the stuff that we feed into the listener function
         except: # Ok this is if something doesn't work, error message
             traceback.print_exc()
@@ -110,7 +116,7 @@ class Worker(QtCore.QRunnable):
 
 class MainWindow(QtGui.QMainWindow):
 
-    def __init__(self, aTCPIPserver):
+    def __init__(self, aTCPIPserver,aTCPIPServerTwoway):
         super().__init__()
 
         maxthreads_threadpool = 5
@@ -223,22 +229,22 @@ class MainWindow(QtGui.QMainWindow):
         self.setCentralWidget(mainwidget)
         self.show()
 
-        # That's the framework for setting a Qt timer
-        #self.timer = QtCore.QTimer()
-        #self.timer.setInterval(50)
-        #self.timer.timeout.connect(self.update_plot_data)
-        #self.timer.start()
-
-
-        # This has to do with QT threads, for now this is just following the examples 
-        #not quite sure whether this is the best way to have it work 
+        # =======================================
+        # TCP/IP Communication, together with Qt Threads
+        # This has to do with QT threads, for now this is just following the examples, not sure if this is the best way
         self.threadpool = QtCore.QThreadPool()
         self.threadpool.setMaxThreadCount(maxthreads_threadpool)
-
+        
+        # Note that this listener_function_Qt is the one that 
+        #has the while True loop to keep listening
         myTCP_IP_Worker = TCP_IP_Worker(aTCPIPserver.listener_function_Qt)
+        myTCP_IP_Worker_Twoway = TCP_IP_Worker(aTCPIPServerTwoway.listener_function_Twoway)
         myTCP_IP_Worker.signals.newdata.connect(self.interpret_message)
+        myTCP_IP_Worker_Twoway.signals.request_to_main.connect(self.process_fitresults_call)
         self.threadpool.start(myTCP_IP_Worker)
+        self.threadpool.start(myTCP_IP_Worker_Twoway)
 
+    ###### End of __init__()
 
     def interpret_message(self,message):
         """
@@ -252,6 +258,41 @@ class MainWindow(QtGui.QMainWindow):
             function_to_call(res[1])
         self.message_processed = True
     
+    def process_fitresults_call(self,arg_tuple):
+        (lock,sender_function,curve_number) = arg_tuple
+        #TODELETE
+        print("Len arg tuple: ",len(arg_tuple))
+        print("Curve number: ",curve_number)
+        doesCurveExist = hasattr(self,self.yaxis_name+"{:d}".format(curve_number))
+        if doesCurveExist is False:
+            print("Message from Class {:s} function process_fitresults_call: You requested fit results for curve {}, but this curve does not exist.".format(self.__class__.__name__,curve_number))
+            sender_function(message_string="nocurve")
+            lock.release()
+            return None
+        doesFitModelExist = hasattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number))
+        if doesFitModelExist is False:
+            sender_function(message_string="nofit")
+            lock.release()
+            return None
+        doesFitExist = getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_isdone
+        if doesFitExist is False:
+            sender_function(message_string="nofit")
+            lock.release()
+            return None
+        isFitSuccessful = getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_issuccessful
+        if isFitSuccessful is False:
+            sender_function(message_string="nofitsuccess")
+            lock.release()
+            return None
+        
+        message_fitresults = ""
+        for (key,val) in getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_function_paramdict.items():
+            message_fitresults += "{:s} : {:.10f},".format(key,val)
+        sender_function(message_string=message_fitresults)
+        lock.release()
+        return None
+
+
     def nofunction(self,verbatim_message):
         print("Function interpreter.message_interpreter could not determine which function to call based on analyzing the transmitted message. Not calling any function. Here is the message that you transmitted (verbatim): {} \n".format(verbatim_message))
     
@@ -619,15 +660,17 @@ def runPlotter(sysargs):
     # this is the server for one-way communication, no responses
     PORT = 5757
     myServer = TCPIPserver(HOST,PORT)
+    myServer.reportedLengthMessage = True
     
     # We want to call this server for two-way communication to send back
     #fit results
-    #PORT_TWOWAY = PORT + 1
-    #myServerTwoway = TCPIPserver(HOST,PORT_TWOWAY)
+    PORT_TWOWAY = PORT + 1
+    myServerTwoway = TCPIPserver(HOST,PORT_TWOWAY)
+    myServerTwoway.reportedLengthMessage = True
 
 
     app = QtWidgets.QApplication(sysargs)
-    w = MainWindow(myServer)
+    w = MainWindow(myServer,myServerTwoway)
     #w.show()
     app.exec_()
     if w.prefitDialogWindow:

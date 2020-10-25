@@ -39,6 +39,7 @@ class GeneralFitter1D:
         kwargs_list = []
         function_name = None
         self.isSetupFitSuccessful = False
+        self.fitmodel_input.fit_isdone = False # If we call setup fit, it means that we are redoing a fit. It is thus not done yet. This should be reflected here
 
         key = "fitroutine" # This could be least squares, or things like differential evolution, etc.
         if key in kwargs:
@@ -73,6 +74,7 @@ class GeneralFitter1D:
 
     def doFit(self):
         
+        self.fitmodel_input.fit_isdone = False # If we call doFit, it means that we are redoing a fit. It is thus not done yet. This should be reflected here
         if not self.isSetupFitSuccessful:
             print("Message from Class {:s} function doFit: function setupFit in the same class was not successful. Fitting impossible".format(self.__class__.__name__))
             return None
@@ -94,6 +96,8 @@ class GeneralFitter1D:
                 loss="linear",f_scale=1) 
         self.optimizationResult = optimization_output
         if self.optimizationResult.success is True:
+            self.fitmodel_input.fit_isdone = True
+            self.fitmodel_input.fit_issuccessful = True
             # we first want to fill the dictionary in the model with fit results
             fitmodel_dictkeylist = list(self.fitmodel_input.fit_function_paramdict_prefit.keys())
             for (idx,key) in enumerate(fitmodel_dictkeylist):
@@ -102,6 +106,8 @@ class GeneralFitter1D:
             self.fitmodel_input.fit_result_fulloutput = self.optimizationResult
             return True
         else:
+            self.fitmodel_input.fit_isdone = False
+            self.fitmodel_input.fit_issuccessful = False
             # if the fit is wrong, it makes sense that the fit result output is None
             self.fitmodel_input.fit_result_fulloutput = None
             return False
@@ -489,36 +495,6 @@ class PhononFitter:
         plt.ylim((-0.1,1.1))
         plt.show()
         plt.close()
-
-class OldFunctions:
-
-    def cropData(self,cropping_bounds = None):
-        if not self.okToFit:
-            print("Warning message from Class {:s} function cropData: okToFit parameter is False. Something was wrong with the data you provided, check previous error messages. Not cropping".format(self.__class__.__name__))
-            return None
-        if cropping_bounds is None:
-            print("Warning message from Class {:s} function cropData: you did not provide cropping bounds. Function cannot be applied".format(self.__class__.__name__))
-            return None
-        if isinstance(cropping_bounds,list):
-            cropping_bounds_numpy = np.array(cropping_bounds)
-        elif isinstance(cropping_bounds,np.ndarray):
-            cropping_bounds_numpy = cropping_bounds
-        else: 
-            print("Message from class {:s} function cropData: croppings bounds must be either a list or a 1D numpy array. Not cropping")
-            return None
-        if (len(cropping_bounds_numpy.shape) != 1) or (cropping_bounds_numpy.shape[0] != 2):
-            print("Message from class {:s} function cropData: croppings bounds must a 1D list or array of length = 2. Not cropping")
-            return None
-
-        # The cropping procedure itself
-        self.xvals = self.xvals[self.xvals > cropping_bounds_numpy[0]]
-        self.xvals = self.xvals[self.xvals < cropping_bounds_numpy[1]]
-        self.yvals = self.yvals[self.xvals > cropping_bounds_numpy[0]]
-        self.yvals = self.yvals[self.xvals < cropping_bounds_numpy[1]]
-        self.errorbars = self.errorbars[self.xvals > cropping_bounds_numpy[0]]
-        self.errorbars = self.errorbars[self.xvals < cropping_bounds_numpy[1]]
-
-
 
 if __name__ == "__main__":
     columns_to_fit = [4]

@@ -7,6 +7,26 @@ Created on Mon Aug 24 14:27:15 2020
 
 import re
 
+def message_interpreter_twoway(message_in = ""):
+    if len(message_in) == 0:
+        print("Function message_interpreter_twoway: apparently no message received, length of message string is 0. Not doing anything")
+        return (False,"nomessage",)
+    
+    message = message_in.strip() # get rid of any possible whitespaces before and after
+    message_in_split = message.split(";") #
+    start_command = message_in_split[0].strip()
+    if start_command == "getfitparams":
+        curve_str = message_in_split[1].strip()
+        try:
+            curve = int(curve_str)
+        except:
+            print("Message from message_interpreter_twoway: you put in this curve number: {}. It is not an integer. Ignoring it".format(c))
+            return (False,"curvenotaninteger",)
+        return (True,"",curve)
+
+    else:
+        return (False,"wrongcommand",)
+
 def message_interpreter(message_in = ""):
    
     if len(message_in) == 0:
@@ -260,6 +280,7 @@ def process_doFit(input_pattern_raw_string,message_parts_list):
     for individual_message in message_parts_list:
         search_res = re.search(full_SetDoFit_pattern,individual_message)
         if search_res:
+            message_parts_list.remove(individual_message)
             return ("do_fit","")
     return None
 

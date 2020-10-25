@@ -17,6 +17,8 @@ class Fitmodel:
         
         self.fitfunction_name_string = fitfunction_name
         self.fit_function_number = fitfunction_number
+        self.fit_isdone = False
+        self.fit_issuccessful = False
        
         #print("Globals in the file containing Fitmodel: ",fitmodels)
         if not hasattr(fitmodels,self.fitfunction_name_string):
