@@ -4,11 +4,16 @@
 *.py~
 
 # Ignore generated files from LaTeX
-*.aux
-*.gz
-*.log
+manual/**
+!manual/*.pdf
+!manual/*.tex
+!manual/*.bib
 
 # Ignore other random generated files
 *.png
 *.dat
 *.plt
+
+# Ignore the pycache and spyder stuff
+__pycache__/**
+.spyproject/**

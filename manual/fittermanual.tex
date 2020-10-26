@@ -7,7 +7,7 @@
 \documentclass[11pt]{article} % use larger type; default would be 10pt
 
 \usepackage[utf8]{inputenc} % set input encoding (not needed with XeLaTeX)
-
+\usepackage{fontspec}  %Only for XeLaTeX or LuaLaTeX
 %%% Examples of Article customizations
 % These packages are optional, depending whether you want the features they provide.
 % See the LaTeX Companion or other references for full information.
@@ -64,7 +64,23 @@
 \begin{document}
 \maketitle
 
+\section{Notation}
+
+\begin{itemize}
+	\item File and folder names are given in the following font {\fontspec{QTCascadetype} myfavoritefile.py} 
+	\item Two
+	\item Three
+\end{itemize}
+
 \section{Basic principles, design philosophy, and governing ideas}
+
+\section{Client-server structure}
+
+The principal idea of the project is to make this plotter-fitter work as a remote server. It should be possible to send all data and commands remotely and get answers back. Of course there is a GUI layer on top, in order to visualize the plots and fits, read the results off the screen, and also do some manual adjustment of plotting, but a big focus of programming this tool is to make it function as a remote server.
+
+The main server class {\fontspec{sourcecodepro} TCPIPserver} is located in file {\fontspec{QTCascadetype} socketserver.py}. It is defined to work in two modes: either one-way, where it only receives messages from the client and does not send any info back, or in two-way more, where a round of communication consists of message reception and transmission. {\fontspec{QTWestEnd} test test test}
+
+
 
 \section{TCP/IP commands}
 

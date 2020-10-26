@@ -70,7 +70,7 @@ def sinewave_prefit(independent_var, measured_data, errorbars, fitparam_dict, fi
         phase_est = fitparam_dict["phase"]
     else:
         phase_est = 1e-5 #this is just effectively 0
-    phase_bounds_est = [0,np.pi]
+    phase_bounds_est = [-np.pi,np.pi]
     
     fitparam_dict["phase"] = phase_est
     fitparam_bounds_dict["phase"] = phase_bounds_est
@@ -166,7 +166,7 @@ def damped_sinewave_prefit(independent_var,measured_data,errorbars,fitparam_dict
     else:
         # set the phase estimate effectively to 0
         phase_est = 1e-5 
-    phase_bounds_est = [0,np.pi]
+    phase_bounds_est = [-np.pi,np.pi]
     
     fitparam_dict["phase"] = phase_est
     fitparam_bounds_dict["phase"] = phase_bounds_est
