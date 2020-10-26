@@ -15,5 +15,5 @@ manual/**
 *.plt
 
 # Ignore the pycache and spyder stuff
-__pycache__/**
+*__pycache__/**
 .spyproject/**
