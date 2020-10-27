@@ -78,9 +78,11 @@
 
 The principal idea of the project is to make this plotter-fitter work as a remote server. It should be possible to send all data and commands remotely and get answers back. Of course there is a GUI layer on top, in order to visualize the plots and fits, read the results off the screen, and also do some manual adjustment of plotting, but a big focus of programming this tool is to make it function as a remote server.
 
-The main server class {\fontspec{sourcecodepro} TCPIPserver} is located in file {\fontspec{QTCascadetype} socketserver.py}. It is defined to work in two modes: either one-way, where it only receives messages from the client and does not send any info back, or in two-way more, where a round of communication consists of message reception and transmission. {\fontspec{QTWestEnd} test test test}
+The main server class {\fontspec{sourcecodepro} TCPIPserver} is located in file {\fontspec{QTCascadetype} socketserver.py}. It is defined to work in two modes: either one-way, where it only receives messages from the client and does not send any info back, or in two-way more, where a round of communication consists of message reception and transmission. {\fontspec{QTWestEnd} At some point in the future this should probably be combined into a single server without a real distinction in the functions themselves whether }
 
+\section{How the fitter itself functions}
 
+{\fontspec{sourcecodepro} TCPIPserver} calls class {\fontspec{sourcecodepro} GeneralFitter1D} with an instance of {\fontspec{sourcecodepro} Fitmodel} class as the only parameter. Fitting itself is done in function {\fontspec{sourcecodepro} GeneralFitter1D.doFit()}, meaning that the optimizer from {\fontspec{sourcecodepro} scipy} is called in that function.  
 
 \section{TCP/IP commands}
 
