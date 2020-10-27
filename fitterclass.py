@@ -14,7 +14,8 @@ import scipy.optimize as sopt
 from PyQt5 import QtWidgets 
 from PyQt5 import QtGui, QtCore
 import helperfunctions
-from inspect import getfullargspec # this is for checking out which arguments are defined in a given function 
+from inspect import getfullargspec # this is for checking out which arguments are defined in a given function
+from functools import partial
 
 
 #TODELETE
@@ -24,7 +25,10 @@ class GeneralFitter1D:
     def __init__(self,fitmodel):
         self.fitmodel_input = fitmodel
         self.isSetupFitSuccessful = True
-        self.optimizer = sopt.least_squares
+        self.optimizer = sopt.least_squares #TODELETE
+        self.opt_method_precooked_callable = None
+        self.opt_method_string_name = ""
+        #self.isSetupFitSuccessful = False
         """
         All inputs must be either 1D lists or 1D numpy arrays, not anything else. errorbars must be either 1D list or 1D numpy array, or left as none, in which case it will simply be initialized to an array filled with all 1. 
         the __init__ function checks that all inputs are as specified, and returns None if there is any error involved
@@ -32,47 +36,23 @@ class GeneralFitter1D:
     
     # TODO Get this to work in order to use different possible 
     #scipy fitting routines
-    def setupFit(self,**kwargs):
+    def setupFit(self,opt_method = "least_squares",dict_to_optimizer={}):
         """
         Here we establish and (ideally) check all the options to be sent to the fitting method. We give all those options as keyword arguments.
         """
-        errorExists = False
-        #kwargs_list = ["fitfunction","fitroutine","fitmethod"]
-        kwargs_list = []
-        function_name = None
-        self.isSetupFitSuccessful = False
-        self.fitmodel_input.fit_isdone = False # If we call setup fit, it means that we are redoing a fit. It is thus not done yet. This should be reflected here
-
-        key = "fitroutine" # This could be least squares, or things like differential evolution, etc.
-        if key in kwargs:
-            kwargs_list.append(key)
-            if kwargs[key] in ["least_squares","leastsq","lsq"]:
-                self.optimizer = sopt.least_squares
-            else:
-                print("Error: incorrect value for {:s} in setupFit. Fitting impossible".format(key))
-                errorExists = True
-                return False
-        else:
-            print("Argument {:s} is not given in setupFit. Assume that the fit routine is scipy.optimize.least_squares".format(key))
-            self.optimizer = sopt.least_squares
-
-        key = "fitmethod"
-        if key in kwargs:
-            kwargs_list.append(key)
-            if kwargs[key] in ["lm","levenberg_marquardt"]:
-                self.optimizer_method = "lm" # see scipy.optimize.least_squares
-            elif kwargs[key] in ["trf"]:
-                self.optimizer_method = "trf"
-        for key in list(kwargs.keys()):
-            if key not in kwargs_list:
-                print("Warning: wrong keyword argument {:s} given in setupFit. Ignoring it".format(key))
-        
-        print("Keys into setupFit: \n", kwargs_list)
-        if errorExists:
+        if hasattr(scipy.optimize,opt_method) is not True:
+            print("Message from Class {:s} function setupFit: the method {} does not exist in scipy.optimize. Not doing anything".format(self.__class__.__name__,opt_method))
             return False
-        else:
-            self.isSetupFitSuccessful = True
-            return True
+        self.opt_method_string_name = opt_method
+        opt_method_callable = getattr(scipy.optimize,opt_method)
+        opt_method_args = getfullargspec(opt_method_callable).args # this will return a list of all available arguments as strings
+        for key in dict_to_optimizer.keys():
+            if key not in opt_method_args:
+                dict_to_optimizer.pop(key)
+                print("Warning from Class {:s} function setupFit: you tried to feed parameter {} to optimizer {}. This method is not available. Ignoring it".format(self.__class__.__name__),key,opt_method)
+        self.opt_method_precooked_callable = partial(opt_method_callable,**dict_to_optimizer) 
+        self.isSetupFitSuccessful = True 
+        self.fitmodel_input.fit_isdone = False # If we call setup fit, it means that we are redoing a fit. It is thus not done yet. This should be reflected here
 
     def doFit(self):
         
@@ -87,6 +67,7 @@ class GeneralFitter1D:
 
         lowerbounds_list = [self.fitmodel_input.fit_function_paramdict_bounds[key][0] for key in self.fitmodel_input.fit_function_paramdict_prefit.keys()]
         upperbounds_list = [self.fitmodel_input.fit_function_paramdict_bounds[key][1] for key in self.fitmodel_input.fit_function_paramdict_prefit.keys()]
+        bounds_to_fitter = sopt.Bounds(lowerbounds_list,upperbounds_list)
         #TODELETE
         print("Prefit paramdict initial input into doFit: ",list(self.fitmodel_input.fit_function_paramdict_prefit.values()))
         optimization_output = self.optimizer(self.fitmodel_input.fit_function,
@@ -94,7 +75,8 @@ class GeneralFitter1D:
                 args = (self.fitmodel_input.xvals,
                         self.fitmodel_input.yvals,
                         self.fitmodel_input.errorbars),
-                bounds=(lowerbounds_list,upperbounds_list),
+                bounds=bounds_to_fitter,
+                upperbounds_list),
                 loss="linear",f_scale=1) 
         self.optimizationResult = optimization_output
         if self.optimizationResult.success is True:
@@ -205,6 +187,44 @@ class PrefitterDialog(QtWidgets.QWidget):
             pass
         else:
             self.makeplot()
+
+class Oldcode:
+
+    """
+    TODELETE
+    That's just temporary, in case it's ever needed 
+    """
+    key = "fitroutine" # This could be least squares, or things like differential evolution, etc.
+    if key in kwargs:
+        kwargs_list.append(key)
+        if kwargs[key] in ["least_squares","leastsq","lsq"]:
+            self.optimizer = sopt.least_squares
+        else:
+            print("Error: incorrect value for {:s} in setupFit. Fitting impossible".format(key))
+            errorExists = True
+            return False
+    else:
+        print("Argument {:s} is not given in setupFit. Assume that the fit routine is scipy.optimize.least_squares".format(key))
+        self.optimizer = sopt.least_squares
+
+    key = "fitmethod"
+    if key in kwargs:
+        kwargs_list.append(key)
+        if kwargs[key] in ["lm","levenberg_marquardt"]:
+            self.optimizer_method = "lm" # see scipy.optimize.least_squares
+        elif kwargs[key] in ["trf"]:
+            self.optimizer_method = "trf"
+    for key in list(kwargs.keys()):
+        if key not in kwargs_list:
+            print("Warning: wrong keyword argument {:s} given in setupFit. Ignoring it".format(key))
+    
+    print("Keys into setupFit: \n", kwargs_list)
+    if errorExists:
+        return False
+    else:
+        self.isSetupFitSuccessful = True
+        return True
+
 
 if __name__ == "__main__":
     columns_to_fit = [4]

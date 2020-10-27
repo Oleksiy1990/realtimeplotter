@@ -196,3 +196,104 @@ def damped_sinewave_prefit(independent_var,measured_data,errorbars,fitparam_dict
     fitparam_bounds_dict["dampingconstant"] = dampingconstant_bounds_est
     
     return (fitparam_dict,fitparam_bounds_dict)
+
+
+def gaussian_base(fitparams,independent_var):
+    """
+    fitparams = [height, center, sigma, vertical offset]
+    defined in the actual normal distribution sense, not like 1/e^2 in optics
+    there is NO normalization factor in front, 1/sigma*sqrt(2*pi). Normalization doesn't really matter for us here, and in this manner the height really determines the height of the peak above the baseline. If height = 1, the height of the peak is 1
+    """
+    return fitparams[0]*np.exp(-0.5*np.power(independent_var - fitparams[1],2.)/np.power(fitparams[2],2.)) + fitparams[3]
+
+def gaussian(fitparams,independent_var,measured_data,errorbars):
+    """
+    fitparams = [height, center, sigma, vertical offset]
+    """
+    return (gaussian_base(fitparams,independent_var) - measured_data)/errorbars
+
+def gaussian_check(fitparams,return_fitparam_empty_dict = False):
+    if len(fitparams) == 4:
+        return True
+    else:
+        return False
+
+def gaussian_paramdict():
+    fitparam_dict = {"height":None, "center":None, "sigma":None, "verticaloffset":None}
+    return fitparam_dict
+
+def gaussian_prefit(independent_var, measured_data, errorbars,
+        fitparam_dict, fitparam_bounds_dict, 
+        fraction_frontback=0.1,vertoffset_deviation_fraction = 0.3,
+        num_periods=5):
+    """
+    This requires the x-values, y-values, and the error bars (although error bars are not really necessary 
+    but it's just for uniformity, one can simply set them all to 1.
+
+    It also requires fitparam_dict and fitparam_bounds_dict. It will look if any values in fitparam_dict have already been set 
+    and use those params, and estimate the other params as well as it can. It will also set the fitparameter bounds so that those can be used in the fitter. 
+    """
+   
+    if not fitparam_dict:
+        print("Message from sinewave_prefit: You did not supply a dictionary of parameters to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        return None
+
+    if not fitparam_bounds_dict:
+        print("Message from sinewave_prefit: You did not supply a dictionary of parameter bounds to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        return None
+
+    # first we estimate the vertical offset by looking at the average of the data at the edges, which is assumed to be away from the Gaussian peak
+    if fitparam_dict["verticaloffset"]:
+        vertoffset_est = fitparam_dict["verticaloffset"]
+    else:
+        arraylen_fraction = int(len(measured_data)*fraction_frontback)
+        vertoffset_est = np.mean(np.union1d(measured_data[0:arraylen_fraction],measured_data[-arraylen_fraction:]))
+    
+    vertoffset_deviation = np.abs(vertoffset_est*vertoffset_deviation_fraction)
+    vertoffset_bounds_est = [vertoffset_est - vertoffset_deviation,
+           vertoffset_est + vertoffset_deviation]
+    fitparam_dict["verticaloffset"] = vertoffset_est
+    fitparam_bounds_dict["verticaloffset"] =  vertoffset_bounds_est
+    
+    data_subtracted_background = measured_data - vertoffset_est
+    
+    # now we estimate the height
+    #note that the height can be negative, in which case the Gaussian points downwards
+    if fitparam_dict["height"]:
+        height_est = fitparam_dict["height"]
+        height_bounds_est = [height_est - 0.3*np.abs(height_est),height_est + 0.3*np.abs(height_est)]
+    else:
+        data_nobgr_abs_value = np.abs(data_subtracted_background)
+        low_est = np.mean(np.partition(measured_data,low_pts)[0:low_pts])
+        high_est = -1*np.mean(np.partition(-1*measured_data,high_pts)[0:high_pts])
+        vertical_offset_est = low_est+amplitude_est
+        vertical_offset_bounds_est = [low_est,high_est]
+   
+    fitparam_dict["verticaloffset"] = vertical_offset_est
+    fitparam_bounds_dict["verticaloffset"] = vertical_offset_bounds_est
+    
+    # now we estimate the phase
+    if fitparam_dict["phase"]:
+        phase_est = fitparam_dict["phase"]
+    else:
+        phase_est = 1e-5 #this is just effectively 0
+    phase_bounds_est = [-np.pi,np.pi]
+    
+    fitparam_dict["phase"] = phase_est
+    fitparam_bounds_dict["phase"] = phase_bounds_est
+
+    # now we estimate the frequency
+    if fitparam_dict["frequency"]:
+        frequency_est = fitparam_dict["frequency"]
+    else:
+        frequency_est = num_periods/(np.max(independent_var)-np.min(independent_var))
+    frequency_bounds_est = [0.5/(np.max(independent_var)-np.min(independent_var)),
+                            0.5*len(independent_var)/(np.max(independent_var)-np.min(independent_var))]
+   
+    fitparam_dict["frequency"] = frequency_est
+    fitparam_bounds_dict["frequency"] = frequency_bounds_est
+
+    return (fitparam_dict,fitparam_bounds_dict)
+
+
+
