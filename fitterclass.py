@@ -21,12 +21,22 @@ from functools import partial
 #TODELETE
 #import matplotlib.pyplot as plt
 
+# This is a utility function in order to get immediately sum squares for optimizers other than 
+#scipy.optimize.least_squares
+def sum_squares_decorator(model_function):
+    def inner(*args,**kwargs):
+        result = model_function(*args,**kwargs)
+        sum_squares = 0.5*np.sum(np.square(result)) # the factor 0.5 is there to just make it
+        #exactly the same as the expression in scipy.optimize.least_squares
+        return sum_squares
+    return inner
 class GeneralFitter1D:
     def __init__(self,fitmodel):
         self.fitmodel_input = fitmodel
         self.isSetupFitSuccessful = True
         self.optimizer = sopt.least_squares #TODELETE
-        self.opt_method_precooked_callable = None
+        self.opt_method_precooked_callable = None # "precooked" just means that it is the optimizer with the setup parameters already
+        #fed into it
         self.opt_method_string_name = ""
         #self.isSetupFitSuccessful = False
         """
@@ -34,17 +44,19 @@ class GeneralFitter1D:
         the __init__ function checks that all inputs are as specified, and returns None if there is any error involved
         """
     
+    
+
     # TODO Get this to work in order to use different possible 
     #scipy fitting routines
     def setupFit(self,opt_method = "least_squares",dict_to_optimizer={}):
         """
         Here we establish and (ideally) check all the options to be sent to the fitting method. We give all those options as keyword arguments.
         """
-        if hasattr(scipy.optimize,opt_method) is not True:
+        if hasattr(sopt,opt_method) is not True:
             print("Message from Class {:s} function setupFit: the method {} does not exist in scipy.optimize. Not doing anything".format(self.__class__.__name__,opt_method))
             return False
         self.opt_method_string_name = opt_method
-        opt_method_callable = getattr(scipy.optimize,opt_method)
+        opt_method_callable = getattr(sopt,opt_method)
         opt_method_args = getfullargspec(opt_method_callable).args # this will return a list of all available arguments as strings
         for key in dict_to_optimizer.keys():
             if key not in opt_method_args:
@@ -53,13 +65,14 @@ class GeneralFitter1D:
         self.opt_method_precooked_callable = partial(opt_method_callable,**dict_to_optimizer) 
         self.isSetupFitSuccessful = True 
         self.fitmodel_input.fit_isdone = False # If we call setup fit, it means that we are redoing a fit. It is thus not done yet. This should be reflected here
+        return True
 
     def doFit(self):
         
         self.fitmodel_input.fit_isdone = False # If we call doFit, it means that we are redoing a fit. It is thus not done yet. This should be reflected here
         if not self.isSetupFitSuccessful:
             print("Message from Class {:s} function doFit: function setupFit in the same class was not successful. Fitting impossible".format(self.__class__.__name__))
-            return None
+            return False
 
         self.fitmodel_input.do_prefit() # This will refresh all the bounds based on 
         #the inputs in the prefit dialog, and also do the prefit itself if there's None
@@ -67,34 +80,86 @@ class GeneralFitter1D:
 
         lowerbounds_list = [self.fitmodel_input.fit_function_paramdict_bounds[key][0] for key in self.fitmodel_input.fit_function_paramdict_prefit.keys()]
         upperbounds_list = [self.fitmodel_input.fit_function_paramdict_bounds[key][1] for key in self.fitmodel_input.fit_function_paramdict_prefit.keys()]
-        bounds_to_fitter = sopt.Bounds(lowerbounds_list,upperbounds_list)
+        bounds_not_least_squares = sopt.Bounds(lowerbounds_list,upperbounds_list)
         #TODELETE
         print("Prefit paramdict initial input into doFit: ",list(self.fitmodel_input.fit_function_paramdict_prefit.values()))
-        optimization_output = self.optimizer(self.fitmodel_input.fit_function,
+
+        # The first case is if self.opt_method_precooked_callable is None, meaning that apparently 
+        #setupFit had not been called
+        if self.opt_method_precooked_callable is None:
+            print("Message from Class {:s} function doFit: You did not specity which optimizer to use for curve fitting. using scipy.optimize.least_squares by default".format(self.__class__.__name__))
+            opt_method_callable = getattr(sopt,"least_squares")
+            optimization_output = opt_method_callable(self.fitmodel_input.fit_function,
                 list(self.fitmodel_input.fit_function_paramdict_prefit.values()),
                 args = (self.fitmodel_input.xvals,
                         self.fitmodel_input.yvals,
                         self.fitmodel_input.errorbars),
-                bounds=bounds_to_fitter,
-                upperbounds_list),
+                bounds=(lowerbounds_list,upperbounds_list),
                 loss="linear",f_scale=1) 
-        self.optimizationResult = optimization_output
-        if self.optimizationResult.success is True:
+        # the case of least_squares    
+        elif self.opt_method_string_name == "least_squares":
+            optimization_output = self.opt_method_precooked_callable(fun=self.fitmodel_input.fit_function,
+                x0=list(self.fitmodel_input.fit_function_paramdict_prefit.values()),
+                args = (self.fitmodel_input.xvals,
+                        self.fitmodel_input.yvals,
+                        self.fitmodel_input.errorbars),
+                bounds=(lowerbounds_list,upperbounds_list),
+                loss="linear",f_scale=1) 
+        # the case of minimize
+        elif self.opt_method_string_name == "minimize":
+            optimization_output = self.opt_method_precooked_callable(fun=sum_squares_decorator(self.fitmodel_input.fit_function),
+                x0=list(self.fitmodel_input.fit_function_paramdict_prefit.values()),
+                args = (self.fitmodel_input.xvals,
+                        self.fitmodel_input.yvals,
+                        self.fitmodel_input.errorbars),
+                bounds=bounds_not_least_squares)
+        elif self.opt_method_string_name == "basishopping":
+            optimization_output = self.opt_method_precooked_callable(fun=sum_squares_decorator(self.fitmodel_input.fit_function),
+                x0=list(self.fitmodel_input.fit_function_paramdict_prefit.values()),
+                args = (self.fitmodel_input.xvals,
+                        self.fitmodel_input.yvals,
+                        self.fitmodel_input.errorbars))
+        elif self.opt_method_string_name == "differential_evolution":
+            optimization_output = self.opt_method_precooked_callable(fun=sum_squares_decorator(self.fitmodel_input.fit_function),
+                args = (self.fitmodel_input.xvals,
+                        self.fitmodel_input.yvals,
+                        self.fitmodel_input.errorbars),
+                bounds = bounds_not_least_squares)
+        elif self.opt_method_string_name == "shgo":
+            optimization_output = self.opt_method_precooked_callable(fun=sum_squares_decorator(self.fitmodel_input.fit_function),
+                args = (self.fitmodel_input.xvals,
+                        self.fitmodel_input.yvals,
+                        self.fitmodel_input.errorbars),
+                bounds = bounds_not_least_squares)
+        elif self.opt_method_string_name == "dual_annealing":
+            optimization_output = self.opt_method_precooked_callable(fun=sum_squares_decorator(self.fitmodel_input.fit_function),
+                args = (self.fitmodel_input.xvals,
+                        self.fitmodel_input.yvals,
+                        self.fitmodel_input.errorbars),
+                bounds = bounds_not_least_squares)
+        else:
+            print("Message from Class {:s} function doFit: you tried to use the following optimizer: {}. This optimizer does not exist. Not doing any optimization".format(self.__class__.__name__,self.opt_method_string_name))
+            return False
+
+
+        if optimization_output.success is True:
             self.fitmodel_input.fit_isdone = True
             self.fitmodel_input.fit_issuccessful = True
             # we first want to fill the dictionary in the model with fit results
             fitmodel_dictkeylist = list(self.fitmodel_input.fit_function_paramdict_prefit.keys())
             for (idx,key) in enumerate(fitmodel_dictkeylist):
-                self.fitmodel_input.fit_function_paramdict[key] = self.optimizationResult.x[idx]
-
-            self.fitmodel_input.fit_result_fulloutput = self.optimizationResult
+                self.fitmodel_input.fit_function_paramdict[key] = optimization_output.x[idx]
+            self.fitmodel_input.fit_result_fulloutput = optimization_output
             return True
         else:
+            print("Message from Class {:s} function doFit: apparently the fit did not converge.".format(self.__class__.__name__))
             self.fitmodel_input.fit_isdone = False
             self.fitmodel_input.fit_issuccessful = False
             # if the fit is wrong, it makes sense that the fit result output is None
             self.fitmodel_input.fit_result_fulloutput = None
             return False
+
+
    
     def __del__(self):
         print("Closing {:s} class instance".format(self.__class__.__name__))

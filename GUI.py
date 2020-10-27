@@ -203,7 +203,7 @@ class MainWindow(QtGui.QMainWindow):
         
         self.FitFunctionChoice = QtGui.QComboBox()
         self.PlotNumberChoice = QtGui.QComboBox()
-        self.FitFunctionChoice.addItems(["None","sinewave","damped_sinewave"])
+        self.FitFunctionChoice.addItems(["None","sinewave","damped_sinewave","gaussian"])
         # self.PlotNumberChoice.addItems should be called in the code in order to create a choice which plot to fit 
         MakeFitBoxLayout = QtGui.QHBoxLayout()
         MakeFitBoxLayout.addWidget(self.MakeFitButton)

@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.signal as spsig
 
 ########################  sinewave model
 def sinewave_base(fitparams,independent_var):
@@ -256,42 +257,45 @@ def gaussian_prefit(independent_var, measured_data, errorbars,
     fitparam_bounds_dict["verticaloffset"] =  vertoffset_bounds_est
     
     data_subtracted_background = measured_data - vertoffset_est
+    # now we estimate the position of the center
+    if fitparam_dict["center"]:
+        center_est = fitparam_dict["center"]
+    else:
+        # we use the Savitzky-Golay filter from scipy.filter, and then find the 
+        #location of the max of the filtered array
+        filtered_savgol = spsig.savgol_filter(data_subtracted_background,10,3)
+        filtered_savgol_abs = np.abs(filtered_savgol)
+        center_est = np.argmax(filtered_savgol_abs)  
+    center_bounds_est = [0,len(measured_data)-1]
+    fitparam_dict["center"] = center_est
+    fitparam_bounds_dict["center"] = center_bounds_est
+
     
     # now we estimate the height
     #note that the height can be negative, in which case the Gaussian points downwards
     if fitparam_dict["height"]:
         height_est = fitparam_dict["height"]
-        height_bounds_est = [height_est - 0.3*np.abs(height_est),height_est + 0.3*np.abs(height_est)]
     else:
-        data_nobgr_abs_value = np.abs(data_subtracted_background)
-        low_est = np.mean(np.partition(measured_data,low_pts)[0:low_pts])
-        high_est = -1*np.mean(np.partition(-1*measured_data,high_pts)[0:high_pts])
-        vertical_offset_est = low_est+amplitude_est
-        vertical_offset_bounds_est = [low_est,high_est]
-   
-    fitparam_dict["verticaloffset"] = vertical_offset_est
-    fitparam_bounds_dict["verticaloffset"] = vertical_offset_bounds_est
+        # basically the height is just the value of the function at the maximum point 
+        #(evaluated after smoothing with the Savitzky-Golay filter)
+        filtered_savgol = spsig.savgol_filter(data_subtracted_background,10,3)
+        height_est = filtered_savgol[center_est]
+    height_bounds_est = [height_est - 0.3*height_est, height_est + 0.3*height_est].sort()   
+    fitparam_dict["height"] = height_est
+    fitparam_bounds_dict["height"] = height_bounds_est
     
-    # now we estimate the phase
-    if fitparam_dict["phase"]:
-        phase_est = fitparam_dict["phase"]
-    else:
-        phase_est = 1e-5 #this is just effectively 0
-    phase_bounds_est = [-np.pi,np.pi]
-    
-    fitparam_dict["phase"] = phase_est
-    fitparam_bounds_dict["phase"] = phase_bounds_est
 
     # now we estimate the frequency
-    if fitparam_dict["frequency"]:
-        frequency_est = fitparam_dict["frequency"]
+    if fitparam_dict["sigma"]:
+        sigma_est = fitparam_dict["sigma"]
     else:
-        frequency_est = num_periods/(np.max(independent_var)-np.min(independent_var))
-    frequency_bounds_est = [0.5/(np.max(independent_var)-np.min(independent_var)),
-                            0.5*len(independent_var)/(np.max(independent_var)-np.min(independent_var))]
+        # we do the max likelihood estimation of the sigma
+        sum_squared_differences = np.sum(np.power(data_subtracted_background - center_est),2.)
+        sigma_est = np.sqrt(sum_squared_differences/len(data_subtracted_background))
    
-    fitparam_dict["frequency"] = frequency_est
-    fitparam_bounds_dict["frequency"] = frequency_bounds_est
+    sigma_bounds_est = [sigma_est/3.,3*sigma_est].sort()
+    fitparam_dict["sigma"] = sigma_est
+    fitparam_bounds_dict["sigma"] = sigma_bounds_est
 
     return (fitparam_dict,fitparam_bounds_dict)
 
