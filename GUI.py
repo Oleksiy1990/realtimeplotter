@@ -359,7 +359,8 @@ class MainWindow(QtGui.QMainWindow):
                 return None
 
         aFitter = GeneralFitter1D(getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)))
-        #aFitter.setupFit(fitfunction = self.FitFunctionChoice.currentText())
+        aFitter.setupFit(opt_method="differential_evolution")
+        # TODO: make the opt_method adjustable from the GUI itself and as one of the parameters of the command string via TCP/IP
         fitres = aFitter.doFit()
         if fitres is True:
             # If the fit result is good, according to the fitter, we want to plot it

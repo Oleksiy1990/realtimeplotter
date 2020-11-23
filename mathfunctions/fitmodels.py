@@ -14,7 +14,7 @@ def sinewave(fitparams,independent_var,measured_data,errorbars):
     """
     return (sinewave_base(fitparams,independent_var) - measured_data)/errorbars
 
-def sinewave_check(fitparams,return_fitparam_empty_dict = False):
+def sinewave_check(fitparams):
     if len(fitparams) == 4:
         return True
     else:
