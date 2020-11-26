@@ -47,7 +47,7 @@ class GeneralFitter1D:
         the __init__ function checks that all inputs are as specified, and returns None if there is any error involved
         """
 
-    # TODO Get this to work in order to use different possible 
+    # TODO Get this to work in order to use different possible fitting routines
     # scipy fitting routines
     def setupFit(self, opt_method="least_squares", dict_to_optimizer={}):
         """

@@ -139,6 +139,11 @@ class MainWindow(QtGui.QMainWindow):
             that pyqtgraph will use for plotting error bars
         self.pen_name : the basis for style container for the curves in pyqtgraph
         self.errorbar_pen_name : the basis for the style of the error bar marks
+        self.fitmodel_instance_name : this is a string holding the name of the fitmodel instance, which will have the data and the fit function in one data structure. 
+            we need a fitmodel_instance_name for every curve
+        self.fitmethod_name : the name of the fit method to give to scipy.optimize. It could be least_squares, 
+            differential_evolution, etc. Check scipy.optimize documentation
+        
         """
         self.yaxis_name = "y"
         self.err_name = "err" 
@@ -148,6 +153,7 @@ class MainWindow(QtGui.QMainWindow):
         self.pen_name = "pen"
         self.errorbar_pen_name = "errpen"
         self.fitmodel_instance_name = "fitmodel"
+        self.fitmethod_name = "differential_evolution"
 
         self.all_instance_attribute_names = [self.yaxis_name,
                 self.err_name,
@@ -359,7 +365,7 @@ class MainWindow(QtGui.QMainWindow):
                 return None
 
         aFitter = GeneralFitter1D(getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)))
-        aFitter.setupFit(opt_method="differential_evolution")
+        aFitter.setupFit(opt_method=self.fitmethod_string)
         # TODO: make the opt_method adjustable from the GUI itself and as one of the parameters of the command string via TCP/IP
         fitres = aFitter.doFit()
         if fitres is True:

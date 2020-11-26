@@ -31,7 +31,7 @@ class Fitmodel:
         
             # if data check was OK, we will now have three member arrays: 
         
-        self.sortDataByXaxis() # now all the arrays are sorted so that self.xvals goes form small to large
+        self.sortDataByXaxis() # now the x-axis is sorted!
     
         self.fit_function_base = getattr(fitmodels,self.fitfunction_name_string+"_base")
         self.fit_function = getattr(fitmodels,self.fitfunction_name_string)
@@ -84,6 +84,8 @@ class Fitmodel:
         Preprocessor to make sure that the given x_values, y_values, and errorbars are given in the correct format, have the same length,and then 
         eventually to turn them all into 1D numpy arrays. Also this makes sure that if error bars are not given, they are just set to 1, which 
         makes sense for fitting
+
+        The output is unsorted!
         """
         
         # make sure that x values are either a list or a numpy array
@@ -140,9 +142,15 @@ class Fitmodel:
         return True # if we got to this point, there is no error, so we can return True
 
     def sortDataByXaxis(self):
+        """
+        Sorts data by the indices of the x-axis, so that basically x[0] is the leftmost coordinate value, and x[-1] is the rightmost coordinate value
+        """
         xaxis_indices = np.argsort(self.xvals)
         self.xvals = self.xvals[xaxis_indices]
         self.yvals = self.yvals[xaxis_indices]
         self.errorbars = self.errorbars[xaxis_indices]
+
+    def cropdata(self):
+        pass
 
 
