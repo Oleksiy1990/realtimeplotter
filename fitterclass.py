@@ -89,6 +89,9 @@ class GeneralFitter1D:
         # the inputs in the prefit dialog, and also do the prefit itself if there's None
         # as any of the values in the prefit dictionary
 
+        #TODELETE:
+        print(self.fitmodel_input.fit_function_paramdict_bounds)
+
         lowerbounds_list = [self.fitmodel_input.fit_function_paramdict_bounds[key][0] for key in
                             self.fitmodel_input.fit_function_paramdict_prefit.keys()]
         upperbounds_list = [self.fitmodel_input.fit_function_paramdict_bounds[key][1] for key in

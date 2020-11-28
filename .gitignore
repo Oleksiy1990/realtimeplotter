@@ -16,6 +16,7 @@ manual/**
 
 # Ignore the pycache and spyder stuff
 *__pycache__/**
+mathfunctions/__pycache__/**
 .spyproject/**
 
 # Ignore the pycharm files

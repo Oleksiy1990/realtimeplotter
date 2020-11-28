@@ -1,6 +1,11 @@
 import numpy as np
 import scipy.signal as spsig
 
+
+"""
+_prefit functions are called from fitmodelclass.do_prefit(). They are called with sorted array values on the x-axis.
+"""
+
 ########################  sinewave model
 def sinewave_base(fitparams,independent_var):
     """
@@ -191,7 +196,7 @@ def damped_sinewave_prefit(independent_var,measured_data,errorbars,fitparam_dict
         dampingconstant_est = fitparam_dict["dampingconstant"]
     else:
         dampingconstant_est = num_periods/frequency_est
-    dampingconstant_bounds_est = [1e-6,1e20]
+    dampingconstant_bounds_est = [dampingconstant_est - dampingconstant_est/2.,dampingconstant_est + dampingconstant_est/2.]
    
     fitparam_dict["dampingconstant"] = dampingconstant_est
     fitparam_bounds_dict["dampingconstant"] = dampingconstant_bounds_est
@@ -223,6 +228,7 @@ def gaussian_paramdict():
     fitparam_dict = {"height":None, "center":None, "sigma":None, "verticaloffset":None}
     return fitparam_dict
 
+# TODO: Write a nice and reliable prefitter for a Gaussian
 def gaussian_prefit(independent_var, measured_data, errorbars,
         fitparam_dict, fitparam_bounds_dict, 
         fraction_frontback=0.1,vertoffset_deviation_fraction = 0.3,
@@ -236,11 +242,11 @@ def gaussian_prefit(independent_var, measured_data, errorbars,
     """
    
     if not fitparam_dict:
-        print("Message from sinewave_prefit: You did not supply a dictionary of parameters to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        print("Message from gaussian_prefit: You did not supply a dictionary of parameters to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
         return None
 
     if not fitparam_bounds_dict:
-        print("Message from sinewave_prefit: You did not supply a dictionary of parameter bounds to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        print("Message from gaussian_prefit: You did not supply a dictionary of parameter bounds to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
         return None
 
     # first we estimate the vertical offset by looking at the average of the data at the edges, which is assumed to be away from the Gaussian peak
@@ -263,10 +269,10 @@ def gaussian_prefit(independent_var, measured_data, errorbars,
     else:
         # we use the Savitzky-Golay filter from scipy.filter, and then find the 
         #location of the max of the filtered array
-        filtered_savgol = spsig.savgol_filter(data_subtracted_background,10,3)
+        filtered_savgol = spsig.savgol_filter(data_subtracted_background,9,3)
         filtered_savgol_abs = np.abs(filtered_savgol)
-        center_est = np.argmax(filtered_savgol_abs)  
-    center_bounds_est = [0,len(measured_data)-1]
+        center_est = independent_var[np.argmax(filtered_savgol_abs)]
+    center_bounds_est = [0,independent_var[-1]]
     fitparam_dict["center"] = center_est
     fitparam_bounds_dict["center"] = center_bounds_est
 
@@ -278,9 +284,11 @@ def gaussian_prefit(independent_var, measured_data, errorbars,
     else:
         # basically the height is just the value of the function at the maximum point 
         #(evaluated after smoothing with the Savitzky-Golay filter)
-        filtered_savgol = spsig.savgol_filter(data_subtracted_background,10,3)
-        height_est = filtered_savgol[center_est]
-    height_bounds_est = [height_est - 0.3*height_est, height_est + 0.3*height_est].sort()   
+        filtered_savgol = spsig.savgol_filter(data_subtracted_background,9,3)
+        index_of_center = np.argmin(np.abs(independent_var - center_est))
+        height_est = filtered_savgol[index_of_center]
+
+    height_bounds_est = sorted([height_est - 0.3*height_est, height_est + 0.3*height_est])
     fitparam_dict["height"] = height_est
     fitparam_bounds_dict["height"] = height_bounds_est
     
@@ -290,10 +298,11 @@ def gaussian_prefit(independent_var, measured_data, errorbars,
         sigma_est = fitparam_dict["sigma"]
     else:
         # we do the max likelihood estimation of the sigma
-        sum_squared_differences = np.sum(np.power(data_subtracted_background - center_est),2.)
-        sigma_est = np.sqrt(sum_squared_differences/len(data_subtracted_background))
+        sum_squared_differences = np.sum(np.power(data_subtracted_background - center_est,2.))
+        sigma_est = 0.25*np.sqrt(sum_squared_differences/len(data_subtracted_background))
+        # NOTE!!! That factor of 0.25 is kind of arbitrary
    
-    sigma_bounds_est = [sigma_est/3.,3*sigma_est].sort()
+    sigma_bounds_est = sorted([sigma_est/3.,3*sigma_est])
     fitparam_dict["sigma"] = sigma_est
     fitparam_bounds_dict["sigma"] = sigma_bounds_est
 

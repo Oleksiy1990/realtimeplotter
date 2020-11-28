@@ -146,17 +146,21 @@ class MainWindow(QtGui.QMainWindow):
         
         """
         self.yaxis_name = "y"
-        self.err_name = "err" 
+        self.err_name = "err"
+        self.fit_cropbounds_name = "fitcropbounds"
         self.plot_line_name = "data_line"
         self.fitplot_line_name = "fit_line"
         self.errorbar_item_name = "errorbar_item"
         self.pen_name = "pen"
         self.errorbar_pen_name = "errpen"
         self.fitmodel_instance_name = "fitmodel"
-        self.fitmethod_name = "differential_evolution"
+
+
+        self.fitmethod_string = "differential_evolution"
 
         self.all_instance_attribute_names = [self.yaxis_name,
                 self.err_name,
+                self.fit_cropbounds_name,
                 self.plot_line_name,
                 self.fitplot_line_name,
                 self.errorbar_item_name,
@@ -266,9 +270,7 @@ class MainWindow(QtGui.QMainWindow):
     
     def process_fitresults_call(self,arg_tuple):
         (lock,sender_function,curve_number) = arg_tuple
-        #TODELETE
-        print("Len arg tuple: ",len(arg_tuple))
-        print("Curve number: ",curve_number)
+
         doesCurveExist = hasattr(self,self.yaxis_name+"{:d}".format(curve_number))
         if doesCurveExist is False:
             print("Message from Class {:s} function process_fitresults_call: You requested fit results for curve {}, but this curve does not exist.".format(self.__class__.__name__,curve_number))
@@ -366,6 +368,9 @@ class MainWindow(QtGui.QMainWindow):
 
         aFitter = GeneralFitter1D(getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)))
         aFitter.setupFit(opt_method=self.fitmethod_string)
+        # we will now check if the crop data has been set and if so, we will perform the cropping before doing the fit
+        if hasattr(self,self.fit_cropbounds_name+"{:d}".format(curve_number)):
+            aFitter.cropdata(*getattr(self,self.fit_cropbounds_name+"{:d}".format(curve_number)))
         # TODO: make the opt_method adjustable from the GUI itself and as one of the parameters of the command string via TCP/IP
         fitres = aFitter.doFit()
         if fitres is True:
@@ -588,6 +593,7 @@ class MainWindow(QtGui.QMainWindow):
         # TODO maybe implement the idea of deleting curves one by one
         else:
             return None # for now, so that it doesn't fail
+            # The code below is unreachable, but that's OK, it's not ready yet
             try:
                 curve_to_delete = int(data_line_name_string)
                 if hasattr(self,self.yaxis_name+f"{curve_to_delete}"):
@@ -649,6 +655,9 @@ class MainWindow(QtGui.QMainWindow):
                 getattr(self,self.fitmodel_instance_name+current_curve_number_string).fit_function_paramdict_prefit[key] = parameterdictionary[key]
             else:
                 print("Message from Class {:s} function set_starting_parameters : you input key {} into the parameter dictionary, and the selected fit model is {}. Such a parameter for the selected fit model does not exist. Not setting this parameter".format(self.__class__.__name__,key,self.FitFunctionChoice.currentText()))
+    def set_crop_tuple(self,croptuple): # this sets the crop tuple for cropping the x-axis before data fitting
+        current_curve_number_string = self.PlotNumberChoice.currentText()
+        setattr(self,self.fit_cropbounds_name+current_curve_number_string,croptuple)
     def do_fit(self,emptystring):
        self.process_MakeFit_button() 
 

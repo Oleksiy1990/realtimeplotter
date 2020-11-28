@@ -115,7 +115,8 @@ def config_interpreter(fullmessage = ""):
         "process_setFitFunction" : r"setfitfunction|set_fit_function",
         "process_setCurveNumber" : r"setcurvenumber|set_curve_number",
         "process_setStartingParameters" : r"setstartparams|setstartparameters|set_starting_values|set_starting_params|set_starting_parameters",
-        "process_doFit" : r"dofit|doFit|do_fit"}
+        "process_doFit" : r"dofit|doFit|do_fit",
+        "process_setCropTuple": r"setCropTuple|set_crop_tuple"}
 
     # This is the list of the commands that will be returned back to the message_interpreter, and
     #then to the main program
@@ -273,6 +274,36 @@ def process_setStartingParameters(input_pattern_raw_string,message_parts_list):
                     print("Message from Module {} function process_setStartingParameter: in entry {}:{} the value {} cannot be converted to float. Not adding this to output dictionary".format(__name__,key,val,val))
             message_parts_list.remove(individual_message)
             return ("set_starting_parameters",output_startparam_dict)
+    return None
+
+def process_setCropTuple(input_pattern_raw_string,message_parts_list):
+    """
+    For now we only set the crop tuples for the fitting purposes, not for the plotting purposes
+    One is supposed to give a command of the form "setCropTuple 5e-3, 15e-3;" or something like that
+    One can also use None if one of the sides should have no crop bound.
+    """
+    full_SetCropTuple_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
+    for individual_message in message_parts_list:
+        search_res = re.search(full_SetCropTuple_pattern,individual_message)
+        if search_res:
+            curvenumber_str = search_res.group(2).strip()
+            crop_bounds_str_list = curvenumber_str.split(",")
+            try:
+                leftbound = float(crop_bounds_str_list[0].strip())
+            except:
+                if crop_bounds_str_list[0].strip() != "None":
+                    print("Message from file {} function process_setCropTuple: the left bound is not a number and not None. Ignoring it and setting it to None".format(
+                        __name__))
+                leftbound = None
+            try:
+                rightbound = float(crop_bounds_str_list[1].strip())
+            except:
+                if crop_bounds_str_list[1].strip() != "None":
+                    print("Message from file {} function process_setCropTuple: the right bound is not a number and not None. Ignoring it and setting it to None".format(
+                        __name__))
+                rightbound = None
+            message_parts_list.remove(individual_message)
+            return ("set_crop_tuple",(leftbound,rightbound))
     return None
 
 def process_doFit(input_pattern_raw_string,message_parts_list):

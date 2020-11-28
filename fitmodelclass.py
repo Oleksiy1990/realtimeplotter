@@ -19,19 +19,19 @@ class Fitmodel:
         self.fit_function_number = fitfunction_number
         self.fit_isdone = False
         self.fit_issuccessful = False
-       
+        self.are_correct_data_loaded = False
+
         #print("Globals in the file containing Fitmodel: ",fitmodels)
         if not hasattr(fitmodels,self.fitfunction_name_string):
             print("Message from Class {}: fit function {} is undefined, not doing anything".format(self.__class__.__name__,self.fitfunction_name_string))
             return None
        
-        datacheck_result = self.checkandsetData(x_axis_vals,measured_data,errorbars_in) # this will preprocess the data to be then used in the fitter
-        if not datacheck_result:
+        datacheck_result = self.checkandsetData(x_axis_vals,measured_data,errorbars_in) # comes out already sorted!
+        if datacheck_result is True:
+            self.are_correct_data_loaded = True
+        else:
+            self.are_correct_data_loaded = False
             print("Message from Class: data check failed. See earlier error messages, some array formatting, lengths, etc, was not fed correctly. Not doing anything")
-        
-            # if data check was OK, we will now have three member arrays: 
-        
-        self.sortDataByXaxis() # now the x-axis is sorted!
     
         self.fit_function_base = getattr(fitmodels,self.fitfunction_name_string+"_base")
         self.fit_function = getattr(fitmodels,self.fitfunction_name_string)
@@ -45,7 +45,7 @@ class Fitmodel:
         self.do_prefit()
     
     def check_paramdict_isfull(self):
-        for value in self,fit_function_paramdict.values():
+        for value in self.fit_function_paramdict.values():
             if value is None: 
                 return False
         return True
@@ -139,6 +139,8 @@ class Fitmodel:
         if (self.errorbars.shape[0] != self.xvals.shape[0]):
             print("Message from Class {:s} function checkandsetData: length of the errorbars and xvals and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
             return False
+
+        self.sortDataByXaxis()  # now the x-axis is sorted!
         return True # if we got to this point, there is no error, so we can return True
 
     def sortDataByXaxis(self):
@@ -150,7 +152,18 @@ class Fitmodel:
         self.yvals = self.yvals[xaxis_indices]
         self.errorbars = self.errorbars[xaxis_indices]
 
-    def cropdata(self):
-        pass
+    def cropdata(self,xmin=None,xmax=None):
+        if xmin is None:
+            xmin = -1e+100 # that's a random very small number
+        if xmax is None:
+            xmin = 1e+100  # that's a random very large number
+        if self.are_correct_data_loaded is True:
+            crop_x_mask = (self.xvals > xmin) & (self.xvals < xmax)
+            self.xvals = self.xvals[crop_x_mask]
+            self.yvals = self.yvals[crop_x_mask]
+            self.errorbars = self.errorbars[crop_x_mask]
+        else:
+            print("Message from Class {} function cropdata: cropping failed according to your x-limits. Check out the limits given".format(
+                self.__class__.__name__))
 
 
