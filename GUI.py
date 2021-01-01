@@ -222,15 +222,32 @@ class MainWindow(QtGui.QMainWindow):
         MakeFitBoxLayout.addWidget(self.FitFunctionChoice)
         MakeFitBoxLayout.addWidget(self.PlotNumberChoice)
         mainwindow_layout.addLayout(MakeFitBoxLayout)
+       
+        #First we create a layout into which we will put widgets
+        CropBoxLayout =QtGui.QHBoxLayout() 
+        #create the widgets themselves, and set their properties
+        self.DoCropButton = QtGui.QPushButton("Crop data")
+        self.CropLowerLimit = QtGui.QLineEdit()
+        self.CropLowerLimit.setAlignment(QtCore.Qt.AlignLeft)
+        self.CropLowerLimit.setPlaceholderText("lowlim")
+        self.CropUpperLimit = QtGui.QLineEdit()
+        self.CropUpperLimit.setAlignment(QtCore.Qt.AlignLeft)
+        self.CropUpperLimit.setPlaceholderText("uplim")
+        #attach action to crop button
+        self.DoCropButton.clicked.connect(self.process_Crop_button)
+        #add the widgets to the layout
+        CropBoxLayout.addWidget(self.DoCropButton)
+        CropBoxLayout.addWidget(self.CropLowerLimit)
+        CropBoxLayout.addWidget(self.CropUpperLimit)
+        #add layout to the main window
+        mainwindow_layout.addLayout(CropBoxLayout) 
 
         # Text box at the bottom for displaying fit results to the user
         self.TextBoxForOutput = QtGui.QTextEdit()
         self.TextBoxForOutput.setReadOnly(True)
         self.TextBoxForOutput.setFontPointSize(12.)
-        #self.TextBoxForOutput.setPlainText("Hello hello \nHello once again")
         mainwindow_layout.addWidget(self.TextBoxForOutput)
-
-
+        
         # setting the main widget to be the one containing the plot and setting 
         #the main window layout
         mainwidget = QtWidgets.QWidget()
@@ -269,33 +286,46 @@ class MainWindow(QtGui.QMainWindow):
         self.message_processed = True
     
     def process_fitresults_call(self,arg_tuple):
+        """
+        This function defines what is sent back to whoever called for the fit results
+        The error messages should be defined here
+        Possibly for later we may want to implement a different class for this, but for now it's here
+
+        It also sends the message based on the sender_function, which is a pre-made function that already comes
+        from socketserver.py
+
+        Don't forget to release the lock in the end
+        """
         (lock,sender_function,curve_number) = arg_tuple
 
         doesCurveExist = hasattr(self,self.yaxis_name+"{:d}".format(curve_number))
         if doesCurveExist is False:
             print("Message from Class {:s} function process_fitresults_call: You requested fit results for curve {}, but this curve does not exist.".format(self.__class__.__name__,curve_number))
-            sender_function(message_string="nocurve")
+            sender_function(message_string="nocurve{:02d}".format(curve_number))
             lock.release()
             return None
         doesFitModelExist = hasattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number))
         if doesFitModelExist is False:
-            sender_function(message_string="nofit")
+            sender_function(message_string="nofitmodel{:02d}".format(curve_number))
             lock.release()
             return None
         doesFitExist = getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_isdone
         if doesFitExist is False:
-            sender_function(message_string="nofit")
+            sender_function(message_string="nofitdone{:02d}".format(curve_number))
             lock.release()
             return None
         isFitSuccessful = getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_issuccessful
         if isFitSuccessful is False:
-            sender_function(message_string="nofitsuccess")
+            sender_function(message_string="nofitsuccess{:02d}".format(curve_number))
             lock.release()
             return None
-        
+
+        # Here we assemble the message to send and then send it
+        # we transmit the resulting paramter values as well as the objective function for a particular fit
         message_fitresults = ""
         for (key,val) in getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_function_paramdict.items():
-            message_fitresults += "{:s} : {:.10f},".format(key,val)
+            message_fitresults += "{:s} : {:.10f}, ".format(key,val)
+        message_fitresults += "objectivefunction : {:.10f},".format(getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_result_objectivefunction)
         sender_function(message_string=message_fitresults)
         lock.release()
         return None
@@ -370,8 +400,7 @@ class MainWindow(QtGui.QMainWindow):
         aFitter.setupFit(opt_method=self.fitmethod_string)
         # we will now check if the crop data has been set and if so, we will perform the cropping before doing the fit
         if hasattr(self,self.fit_cropbounds_name+"{:d}".format(curve_number)):
-            aFitter.cropdata(*getattr(self,self.fit_cropbounds_name+"{:d}".format(curve_number)))
-        # TODO: make the opt_method adjustable from the GUI itself and as one of the parameters of the command string via TCP/IP
+            aFitter.cropdata(getattr(self,self.fit_cropbounds_name+"{:d}".format(curve_number)))
         fitres = aFitter.doFit()
         if fitres is True:
             # If the fit result is good, according to the fitter, we want to plot it
@@ -474,6 +503,21 @@ class MainWindow(QtGui.QMainWindow):
                 self.fitmodel_instance_name+"{:d}".format(curve_number)))
         
         self.prefitDialogWindow.show()
+
+    def process_Crop_button(self):
+        try:
+            upperlim = float(self.CropUpperLimit.text())
+        except ValueError:
+            upperlim = None
+            print("Message from Class {} function process_Crop_button: upper crop limit is invalid, setting to None".format(self.__class__.__name__))
+
+        try:
+            lowerlim = float(self.CropLowerLimit.text())
+        except ValueError:
+            lowerlim = None
+            print("Message from Class {} function process_Crop_button: lower crop limit is invalid, setting to None".format(self.__class__.__name__))
+
+        self.set_crop_tuple((lowerlim,upperlim))
 
     def showdata(self,data):
         print(data)
@@ -658,6 +702,7 @@ class MainWindow(QtGui.QMainWindow):
     def set_crop_tuple(self,croptuple): # this sets the crop tuple for cropping the x-axis before data fitting
         current_curve_number_string = self.PlotNumberChoice.currentText()
         setattr(self,self.fit_cropbounds_name+current_curve_number_string,croptuple)
+
     def do_fit(self,emptystring):
        self.process_MakeFit_button() 
 
@@ -693,23 +738,6 @@ def runPlotter(sysargs):
         w.prefitDialogWindow.close()
     print("done with the plotter")
 
-
-class OldFunctions:
-
-    def add_plot_data(self,datapoint):
-        self.x.append(datapoint[0])
-        self.y.append(datapoint[1])
-        self.data_line.setData(self.x,self.y)
-
-    def update_plot_data(self):
-
-        self.x = self.x[1:]  # Remove the first y element.
-        self.x.append(self.x[-1] + 1)  # Add a new value 1 higher than the last.
-
-        self.y = self.y[1:]  # Remove the first 
-        self.y.append(np.sin(self.x[-1]/10))  # Add a new random value.
-
-        self.data_line.setData(self.x, self.y)  # Update the data.
 
 if __name__ == "__main__":
     runPlotter(sys.argv)

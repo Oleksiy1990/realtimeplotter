@@ -20,6 +20,9 @@ class Fitmodel:
         self.fit_isdone = False
         self.fit_issuccessful = False
         self.are_correct_data_loaded = False
+        self.xvals_orig = None
+        self.yvals_orig = None
+        self.errorbars_orig = None
 
         #print("Globals in the file containing Fitmodel: ",fitmodels)
         if not hasattr(fitmodels,self.fitfunction_name_string):
@@ -41,6 +44,7 @@ class Fitmodel:
         self.fit_function_paramdict_prefit = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
         self.fit_function_paramdict_bounds = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
         self.fit_result_fulloutput = None
+        self.fit_result_objectivefunction = None # this hold the value of what had to be minimized, so sum squared of residuals normally
 
         self.do_prefit()
     
@@ -73,6 +77,11 @@ class Fitmodel:
             print("Message from function delete_prefit_parameter: parameter name foes not exist in the dictionary for the function in use. Not doing anything")
 
     def do_prefit(self,**kwargs):
+        """
+        Important:
+        This is the prefit routine, which fills the prefit parameter dictionary and bounds that will then
+        be passed to the fitter itself
+        """
         prefit_function = getattr(fitmodels,self.fitfunction_name_string+"_prefit")
         (self.fit_function_paramdict_prefit,self.fit_function_paramdict_bounds) = prefit_function(self.xvals,self.yvals,self.errorbars,self.fit_function_paramdict_prefit,
             self.fit_function_paramdict_bounds,**kwargs)
@@ -141,6 +150,15 @@ class Fitmodel:
             return False
 
         self.sortDataByXaxis()  # now the x-axis is sorted!
+
+        # fill the arrays with the original values so that they do not get lost if we try to crop, then crop again
+        # with different limits, for example. In general, we may want, after some faulty operation,
+        # get back to the original array. This is where that array is stored
+        # NOTE! we need to make copies, otherwise the array will be modified in subsequent functions. This is a
+        # general property of Python arrays (also Numpy)
+        self.xvals_orig = self.xvals.copy()
+        self.yvals_orig = self.yvals.copy()
+        self.errorbars_orig = self.errorbars.copy()
         return True # if we got to this point, there is no error, so we can return True
 
     def sortDataByXaxis(self):
@@ -152,16 +170,17 @@ class Fitmodel:
         self.yvals = self.yvals[xaxis_indices]
         self.errorbars = self.errorbars[xaxis_indices]
 
-    def cropdata(self,xmin=None,xmax=None):
+    def do_cropping(self,xmin=None,xmax=None):
         if xmin is None:
             xmin = -1e+100 # that's a random very small number
         if xmax is None:
             xmin = 1e+100  # that's a random very large number
         if self.are_correct_data_loaded is True:
-            crop_x_mask = (self.xvals > xmin) & (self.xvals < xmax)
-            self.xvals = self.xvals[crop_x_mask]
-            self.yvals = self.yvals[crop_x_mask]
-            self.errorbars = self.errorbars[crop_x_mask]
+            crop_x_mask = (self.xvals_orig > xmin) & (self.xvals_orig < xmax)
+            # make copies in order to always keep the old one available if necessary
+            self.xvals = self.xvals_orig[crop_x_mask].copy()
+            self.yvals = self.yvals_orig[crop_x_mask].copy()
+            self.errorbars = self.errorbars_orig[crop_x_mask].copy()
         else:
             print("Message from Class {} function cropdata: cropping failed according to your x-limits. Check out the limits given".format(
                 self.__class__.__name__))

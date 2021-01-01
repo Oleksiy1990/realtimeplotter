@@ -76,6 +76,10 @@ class GeneralFitter1D:
         self.fitmodel_input.fit_isdone = False  # If we call setup fit, it means that we are redoing a fit. It is thus not done yet. This should be reflected here
         return True
 
+    def cropdata(self,crop_data_tuple):
+        self.fitmodel_input.do_cropping(*crop_data_tuple)
+
+
     def doFit(self):
 
         self.fitmodel_input.fit_isdone = False  # If we call doFit, it means that we are redoing a fit. It is thus not done yet. This should be reflected here
@@ -98,11 +102,8 @@ class GeneralFitter1D:
                             self.fitmodel_input.fit_function_paramdict_prefit.keys()]
         # the next variable is for use with the scipy optimizers other than least_squares
         bounds_not_least_squares = sopt.Bounds(lowerbounds_list, upperbounds_list)
-        # TODELETE
-        print("Prefit paramdict initial input into doFit: ",
-              list(self.fitmodel_input.fit_function_paramdict_prefit.values()))
 
-        # The first case is if self.opt_method_precooked_callable is None, meaning that apparently 
+        # The first case is if self.opt_method_precooked_callable is None, meaning that apparently
         # setupFit had not been called
         if self.opt_method_precooked_callable is None:
             print(
@@ -176,6 +177,7 @@ class GeneralFitter1D:
             for (idx, key) in enumerate(fitmodel_dictkeylist):
                 self.fitmodel_input.fit_function_paramdict[key] = optimization_output.x[idx]
             self.fitmodel_input.fit_result_fulloutput = optimization_output
+            self.fitmodel_input.fit_result_objectivefunction = optimization_output.fun
             return True
         else:
             print("Message from Class {:s} function doFit: apparently the fit did not converge.".format(
@@ -281,5 +283,3 @@ class PrefitterDialog(QtWidgets.QWidget):
         else:
             self.makeplot()
 
-# test test test
-# test test

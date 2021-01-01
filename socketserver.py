@@ -6,7 +6,7 @@ Created on Fri Aug 21 12:31:46 2020
 """
 import socket 
 from threading import Thread, Lock
-import re
+#import re
 from interpreter import message_interpreter_twoway
 from functools import partial
 
@@ -22,7 +22,8 @@ class TCPIPserver():
 
         self.received_msg_str = ""
 
-        self.lock_for_transmission = Lock()
+        self.lock_for_transmission = Lock() # this is basically in order to get results
+        # from the fitter without something else happening in the meantime
 
     
     def send_message(self,socket_to_send,message_string,isPreamble,encoding = "utf-8"):
@@ -114,10 +115,10 @@ class TCPIPserver():
         """
         # The case when the message comes with a preamble
         if self.reportedLengthMessage is True:
-            NUM_BYTES_PREAMBLE = 8 #exactly 8 characters at the beginning
-            # Remember that in this case the socket is basically hanging in the while True loop until 00000000 is received
+            NUM_BYTES_PREAMBLE = 8 # exactly 8 characters at the beginning
+            # Remember that in this case the socket is hanging in the while True loop until 00000000 is received
             while True:
-                self.lock_for_transmission.acquire()
+                self.lock_for_transmission.acquire() # get Lock() so that other threads are not running meanwhile
                 preamble_bytes = socket_in.recv(NUM_BYTES_PREAMBLE)
                 preamble_str = preamble_bytes.decode(encoding = encoding)
                 try:    
@@ -152,22 +153,30 @@ class TCPIPserver():
                         message_length -= self.buffersize # we subtract the number of already received bytes
                 # Here the data is decoded into a string and sent to the main program via the emit() function, but
                 #note that the code is still sitting in the outer while True loop waiting for 00000000 to exit the function 
-                result = full_message_bytes.decode(encoding = encoding)
+                incoming_string_twoway = full_message_bytes.decode(encoding = encoding)
                 #TODELETE
-                print("Here is what came in on Twoway : ",result)
-                interpretation_result = message_interpreter_twoway(message_in = result)
+                print("Here is what came in on Twoway : ",incoming_string_twoway)
+                incoming_interpreted_twoway = message_interpreter_twoway(message_in = incoming_string_twoway)
                 #TODELETE
-                print("Here is the interpretation result Twoway : ",interpretation_result)
-                #interpretation result is in the form: 3-tuple (True/False,string,int curve number requested)
-                if interpretation_result[0] is False:
-                    self.send_message(socket_in,interpretation_result[1],self.reportedLengthMessage)
+                print("Here is the interpretation result Twoway : ",incoming_interpreted_twoway)
+
+                #interpretation result is in the form: 3-tuple
+                # (True/False,
+                # string containing results or error message,
+                # int curve number requested)
+
+                if incoming_interpreted_twoway[0] is False: # this means that incoming message interpretation failed
+                    self.send_message(socket_in,incoming_interpreted_twoway[1],self.reportedLengthMessage)
                     self.lock_for_transmission.release()
                 else:
                     sender_function = partial(self.send_message,
                         socket_to_send = socket_in,
                         isPreamble = self.reportedLengthMessage)
+                    # request_to_main is one of the worker signals, and we emit it with the tuple
+                    # of arguments that then function process_fitresults_call will use
+                    # process_fitresults_call is the connected method to request_to_main
                     workersignals.request_to_main.emit((self.lock_for_transmission,
-                        sender_function,interpretation_result[2]))
+                        sender_function,incoming_interpreted_twoway[2]))
 
                     
         else:
@@ -194,20 +203,6 @@ class TCPIPserver():
                     sender_function,interpretation_result[2]))
 
 
-    # This is NOT used in Qt version of the fitter app. This should be deleted later
-    def listener_function(self):
-        self.serversocket.listen(self.numconnections)
-        while True:
-            # accept connections from outside
-            print("TCPIP server waiting for connections")
-            (clientsocket, address) = self.serversocket.accept()
-            
-            # now do something with the clientsocket
-            #print(type(address))
-            print("Received connection from port {}".format(address))
-            comm_processing_thread = Thread(target = self.clientsocket_parser,args = (clientsocket,),daemon=True)
-            comm_processing_thread.start()
-    
     def listener_function_Qt(self,workersignals):
         self.serversocket.listen(self.numconnections)
         while True:

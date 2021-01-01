@@ -8,6 +8,9 @@ Created on Mon Aug 24 14:27:15 2020
 import re
 
 def message_interpreter_twoway(message_in = ""):
+    """
+    Note: this parses the incoming message into the two-way communication
+    """
     if len(message_in) == 0:
         print("Function message_interpreter_twoway: apparently no message received, length of message string is 0. Not doing anything")
         return (False,"nomessage",)
@@ -20,7 +23,7 @@ def message_interpreter_twoway(message_in = ""):
         try:
             curve = int(curve_str)
         except:
-            print("Message from message_interpreter_twoway: you put in this curve number: {}. It is not an integer. Ignoring it".format(c))
+            print("Message from message_interpreter_twoway: you put in this curve number: {}. It is not an integer. Ignoring it".format(curve_str))
             return (False,"curvenotaninteger",)
         return (True,"",curve)
 

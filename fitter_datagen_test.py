@@ -104,21 +104,21 @@ doSetFitFunction = True
 doSetCurveNumber = True 
 doSetFitParameters = True
 doSetCurveNumber = True
-doCropCurve = False
+doCropCurve = True
 dofit = True
 
 if doSetPlotTitle:
     message_str = message_str + "set_plot_title My test plot;"
 if doSetAxisLabels:
-    message_str = message_str + "set_axis_labels my xaxis, my yaxis;"
+    message_str = message_str + r"set_axis_labels my time [s], my yaxis [val];"
 if doSetFitFunction:
     message_str = message_str + "set_fit_function gaussian;"     
 if doSetCurveNumber:
-    message_str = message_str + "set_curve_number 0;"
+    message_str = message_str + "set_curve_number 1;"
 if doSetFitParameters:
     message_str = message_str + "setstartparams height : 2.5, center: 9.5, sigma: 2.5, verticaloffset: 0;"
 if doCropCurve:
-    message_str = message_str + "setCropTuple 2,24;"
+    message_str = message_str + "setCropTuple 20,40;"
 if dofit:
     message_str = message_str + "dofit ;"
     
