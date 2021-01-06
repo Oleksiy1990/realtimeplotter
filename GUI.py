@@ -151,6 +151,7 @@ class MainWindow(QtGui.QMainWindow):
         self.plot_line_name = "data_line"
         self.fitplot_line_name = "fit_line"
         self.errorbar_item_name = "errorbar_item"
+        self.legend_item_name = "legend_item"
         self.pen_name = "pen"
         self.errorbar_pen_name = "errpen"
         self.fitmodel_instance_name = "fitmodel"
@@ -171,7 +172,7 @@ class MainWindow(QtGui.QMainWindow):
         self.x = [] # This is the x-axis for all plots
         # NOTE: Maybe we will have to change this so that plots with different 
         #numbers of x-axis points can be processed uniformly 
-
+        self.legend_label_list = []
 
         # This is the number of datasets in the current state of the class instance
         self.num_datasets = 0
@@ -187,8 +188,9 @@ class MainWindow(QtGui.QMainWindow):
         #graphWidget (instance of pyqtgraph.PlotWidget() )
         self.graphWidget = pg.PlotWidget() 
         self.graphWidget.setBackground('w')
-        #TODO Get the legend to work
-        #self.graphWidget.addLegend()
+
+        # we set the legend here. The labels have to be set in the definitions of curves later in the code
+        setattr(self, self.legend_item_name, self.graphWidget.addLegend())
         mainwindow_layout.addWidget(self.graphWidget)
 
         # Two buttons right below the plot: Clear plot and clear data
@@ -387,7 +389,7 @@ class MainWindow(QtGui.QMainWindow):
         #fitter
         if not hasattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)):
             result_check_settings = self.checkAndReturnDataPrefit()
-            if result_check_settings:
+            if result_check_settings is not None:
                 setattr(self,
                     self.fitmodel_instance_name+"{:d}".format(curve_number),
                     fm.Fitmodel(fitfunction_name,curve_number,
@@ -424,8 +426,12 @@ class MainWindow(QtGui.QMainWindow):
             setattr(self,self.plot_line_name+"{:d}".format(curve_number),
                     self.graphWidget.plot(symbol="o",
                     pen=pg.mkPen(None),
-                    symbolBrush = pg.mkBrush(self.colorpalette[curve_number]))) 
+                    symbolBrush = pg.mkBrush(self.colorpalette[curve_number])))
+                    #name=self.legend_label_list[curve_number]))
+
+
             # replot the measured data points
+            # this setData below is a method of PlotDataItem
             getattr(self,self.plot_line_name+"{:d}".format(curve_number)).setData(*measured_data_array[0:2])
 
             # if the fit plot aleady exists, clear it, because we don't want
@@ -435,7 +441,8 @@ class MainWindow(QtGui.QMainWindow):
             
             # finally make a fit plot line and plot the data to it
             setattr(self,self.fitplot_line_name+"{:d}".format(curve_number),
-                self.graphWidget.plot(symbol=None,pen=getattr(self,"pen{:d}".format(curve_number)),
+                self.graphWidget.plot(symbol=None,
+                    pen=getattr(self,"pen{:d}".format(curve_number)),
                     symbolBrush = pg.mkBrush(None)))
             getattr(self,self.fitplot_line_name+"{:d}".format(curve_number)).setData(aXvalsDense,aYvalsDense)
 
@@ -539,6 +546,7 @@ class MainWindow(QtGui.QMainWindow):
 
     # This function is for real-time plotting of data points, 
     #just as they come in through TCP/IP
+    # this is called directly from interpreter basically!
     def generate_plot_pointbypoint(self,datapoint):
         """
         data points are supposed to be sent as tuples in the format (x_val,[y1_val,y2_val,...],[y1_err,y2_err,...]). If the length of the tuple is 3, we have error bars, if the length of the tuple is 2, we do not have error bars
@@ -546,24 +554,28 @@ class MainWindow(QtGui.QMainWindow):
 
         if len(datapoint) == 2:
             (independent_var,dependent_vars) = datapoint
-            if len(self.x) == 0: # This means that the array is empty
+            if len(self.legend_label_list) == 0:
+                self.legend_label_list = ["c{:d}".format(idx) for idx in range(len(dependent_vars))]
+            if len(self.x) == 0: # This means that the array is still empty
                 self.arePlotsCleared = False
                 [setattr(self,self.yaxis_name+"{:d}".format(idx),[]) 
-                        for idx in range(len(dependent_vars))]
+                        for idx in range(len(dependent_vars))] # setting the data values
                 [setattr(self,self.pen_name+"{:d}".format(idx),
                     pg.mkPen(color=self.colorpalette[idx],style=QtCore.Qt.DashLine)) 
-                    for idx in range(len(dependent_vars))]
+                    for idx in range(len(dependent_vars))] # creating the pen for lines
                 [setattr(self,self.plot_line_name+"{:d}".format(idx),
-                    self.graphWidget.plot(symbol="o",name="C{:d}".format(idx),
+                    self.graphWidget.plot(symbol="o",name=self.legend_label_list[idx],
                     pen=getattr(self,"pen{:d}".format(idx)),
                     symbolBrush = pg.mkBrush(self.colorpalette[idx]))) 
-                    for idx in range(len(dependent_vars))]
+                    for idx in range(len(dependent_vars))] # initializing the plot itself
+                #setattr(self,self.legend_item_name,self.graphWidget.addLegend()) # legend
             if self.arePlotsCleared:
                 [setattr(self,self.plot_line_name+"{:d}".format(idx),
-                    self.graphWidget.plot(symbol="o",name="C{:d}".format(idx),
+                    self.graphWidget.plot(symbol="o",name=self.legend_label_list[idx],
                     pen=getattr(self,"pen{:d}".format(idx)),
                     symbolBrush = pg.mkBrush(self.colorpalette[idx]))) 
                     for idx in range(len(dependent_vars))]
+                #setattr(self, self.legend_item_name, self.graphWidget.addLegend()) # legend
             self.x.append(independent_var)
             for idx in range(len(dependent_vars)):
                 getattr(self,self.yaxis_name+"{:d}".format(idx)).append(dependent_vars[idx])
@@ -576,7 +588,9 @@ class MainWindow(QtGui.QMainWindow):
 
         if len(datapoint) == 3:
             (independent_var,dependent_vars,errorbar_vars) = datapoint
-            if len(self.x) == 0: # This means that the array is empty
+            if len(self.legend_label_list) == 0:
+                self.legend_label_list = ["c{:d}".format(idx) for idx in range(len(dependent_vars))]
+            if len(self.x) == 0: # This means that the array is still empty
                 self.arePlotsCleared = False
                 [setattr(self,self.yaxis_name+f"{idx}",[]) 
                         for idx in range(len(dependent_vars))]
@@ -588,17 +602,19 @@ class MainWindow(QtGui.QMainWindow):
                     pg.mkPen(color=self.colorpalette[idx],
                     style=QtCore.Qt.SolidLine)) for idx in range(len(dependent_vars))]
                 [setattr(self,self.plot_line_name+f"{idx}",
-                    self.graphWidget.plot(symbol="o",name="C{:d}".format(idx),
+                    self.graphWidget.plot(symbol="o",name=self.legend_label_list[idx],
                     pen=getattr(self,self.pen_name+f"{idx}"),
                     symbolBrush = pg.mkBrush(self.colorpalette[idx]))) 
                     for idx in range(len(dependent_vars))]
+
             self.x.append(independent_var)
             if self.arePlotsCleared:
                 [setattr(self,self.plot_line_name+f"{idx}",
-                    self.graphWidget.plot(symbol="o",name="C{:d}".format(idx),
+                    self.graphWidget.plot(symbol="o",name=self.legend_label_list[idx],
                     pen=getattr(self,self.pen_name+f"{idx}"),
                     symbolBrush = pg.mkBrush(self.colorpalette[idx]))) 
                     for idx in range(len(dependent_vars))]
+                #setattr(self, self.legend_item_name, self.graphWidget.addLegend())  # legend
 
             for idx in range(len(dependent_vars)):
                 getattr(self,self.yaxis_name+f"{idx}").append(dependent_vars[idx])
@@ -620,6 +636,8 @@ class MainWindow(QtGui.QMainWindow):
         """
         self.graphWidget.clear()
         self.arePlotsCleared = True
+        if hasattr(self, self.legend_item_name):
+            getattr(self, self.legend_item_name).clear()
 
     def clear_data(self,data_line_name_string):
         if data_line_name_string == "all":
@@ -633,6 +651,9 @@ class MainWindow(QtGui.QMainWindow):
             self.clear_plot("")
             self.num_datasets = 0
             self.PlotNumberChoice.clear()
+            self.legend_label_list = []
+            if hasattr(self, self.legend_item_name):
+                getattr(self, self.legend_item_name).clear()
             return None
         # TODO maybe implement the idea of deleting curves one by one
         else:
@@ -658,9 +679,11 @@ class MainWindow(QtGui.QMainWindow):
         self.graphWidget.setLabels(bottom=axis_labels[0],left=axis_labels[1])
     def set_plot_title(self,plotTitle):
         self.graphWidget.setTitle(title=plotTitle)
-    # TODO write the correct function for setting the legends
     def set_plot_legend(self,legendlabels):
-        pass
+        if len(self.x) == 0:
+            self.legend_label_list = legendlabels
+        else:
+            print("Message from Class {} function set_plot_legend: you must set labels to plot legend before sending data".format(self.__class__.__name__))
     def set_fit_function(self,fitfunctionname):
         if isinstance(fitfunctionname,str):
             fitfunction_index = self.FitFunctionChoice.findText(fitfunctionname)

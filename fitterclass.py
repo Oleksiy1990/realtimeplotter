@@ -192,6 +192,7 @@ class GeneralFitter1D:
         print("Closing {:s} class instance".format(self.__class__.__name__))
 
 
+
 class PrefitterDialog(QtWidgets.QWidget):
     def __init__(self, fitmodel_instance):
         super().__init__()

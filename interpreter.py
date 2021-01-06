@@ -221,12 +221,15 @@ def process_setPlotLegend(input_pattern_raw_string,message_parts_list):
             legendLabels = search_res.group(2)
             allLegendLabels = legendLabels.split(",")
             for legendlabel in allLegendLabels:
-                individual_label_pattern = r"(curve|Curve)(\d{1,2})\s+(.*)"
-                individual_label_search_res = re.search(individual_label_pattern,legendlabel)
-                if individual_label_search_res:
-                    curve_num = int(individual_label_search_res.group(2))
-                    legend_string = individual_label_search_res.group(3)
+                individual_label_pattern_curvenums = r"(curve|Curve)(\d{1,2})\s+(.*)"
+                individual_label_search_res_curvenums = re.search(individual_label_pattern_curvenums,legendlabel)
+                if individual_label_search_res_curvenums: # TODO: Implement this well
+                    curve_num = int(individual_label_search_res_curvenums.group(2))
+                    legend_string = individual_label_search_res_curvenums.group(3)
                     legend_labels_list.append((curve_num,legend_string))
+                else:
+                    legend_labels_list.append(legendlabel.strip())
+
             message_parts_list.remove(individual_message)
             return ("set_plot_legend",legend_labels_list)
     return None

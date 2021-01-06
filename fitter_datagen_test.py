@@ -15,7 +15,7 @@ doClearData = True
 if doClearData:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((HOST, PORT))
-    my_information = "config; clear_data all"
+    my_information = "config; clear_data all; setplotlegend mynewcurve0, mynewcurve1;"
     message_encoded = my_information.encode("utf-8",errors="ignore")
     message_length = len(message_encoded)
     preamble = "{:08d}".format(message_length)
@@ -102,13 +102,15 @@ doSetPlotTitle = True
 doSetAxisLabels = True
 doSetFitFunction = True
 doSetCurveNumber = True 
-doSetFitParameters = True
-doSetCurveNumber = True
+doSetFitParameters = False
+doSetLegend = False
 doCropCurve = True
-dofit = True
+dofit = False
 
 if doSetPlotTitle:
     message_str = message_str + "set_plot_title My test plot;"
+if doSetLegend:
+    message_str = message_str + "setplotlegend gauss0, gauss1;"
 if doSetAxisLabels:
     message_str = message_str + r"set_axis_labels my time [s], my yaxis [val];"
 if doSetFitFunction:
