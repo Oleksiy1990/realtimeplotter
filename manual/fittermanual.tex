@@ -73,7 +73,7 @@
 	\item Three
 \end{itemize}
 
-\section{Basic principles, design philosophy, and governing ideas}
+\section{Basic principles, design philosophy, and governing ideas} \label{basicprinciples}
 
 \section{Client-server structure}
 
@@ -107,16 +107,19 @@ For those who program in Python and understand the lingo: the value correspondin
 
 As of now, the implemented methods are 
 \begin{itemize}
-\item {\fontspec{sourcecodepro} {''}config{''}} This will send configuration parameters to the plotter and fitter, such as axis labels, plot label, legend labels, as well as what kind of function to plot, what are the plot starting parameters, plot limits, etc.
-\item {\fontspec{sourcecodepro} {''}data{''}} This send data point by point to the plotter. Once the plotter receives each data point, it immediately puts it on the screen
-\item {\fontspec{sourcecodepro} {''}fitrequest{''}} This tells the plotter which fit to send back to the client. 
+\item {\fontspec{sourcecodepro} {''}doClear{''}} This will clear the information from the screen and from the server memory. 
+\item {\fontspec{sourcecodepro} {''}setConfig{''}} This will send configuration parameters to the plotter and fitter, such as axis labels, plot label, legend labels, etc
+\item {\fontspec{sourcecodepro} {''}addData{''}} This send data point by point to the plotter, or alternatively (later) lists of data points at once. Once the plotter receives each data point, it immediately puts it on the screen
+\item {\fontspec{sourcecodepro} {''}doFit{''}} This will perform the fit to (some of) the data that has been previously sent to the server. Cropping is also done here, because cropping is something that's used only for fitting. 
+\item {\fontspec{sourcecodepro} {''}getFitResult{''}} This tells the plotter which fit to send back to the client. 
+\item {\fontspec{sourcecodepro} {''}getConfig{''}} Not implemented yet, but envisioned to get configurations back to the server
 \end{itemize}
 
-whenever the method is ``config'' or ``data'', the server send to the client a JSON-RPC2.0 string of the following form: 
+whenever the method is anything other than ``getFitResult'' or ``getConfig'', the server send to the client a JSON-RPC2.0 string of the following form: 
 
 {\fontspec{sourcecodepro} \{ {''}jsonrpc{''}: {''}2.0{''}, {''}result{''}: {''}MessageReceived{''}\}}
 
-Whenever the method is ``fitrequest'', the server will respond as follows: 
+Whenever the method is ``getFitResult'', the server will respond as follows: 
 
 {\fontspec{sourcecodepro} \{ {''}jsonrpc{''}: {''}2.0{''}, {''}result{''}: <dictionary>\}}
 
@@ -134,7 +137,13 @@ As we have seen, ``params'' in the request must be sent as dictionaries, so in t
 
 We list the parameters with an explanation of the possible values (the parameter literal is before the colon, the possible values are after the colon, explanation in parentheses
 
-\textbf{Case 1: ``method'' is ``config''}
+\textbf{Case 1: ``method'' is ``doClear''}
+\begin{itemize}
+\item ``clearData'' : ``all'' (This clears everything, so data, fits, axis labels, etc. )
+
+For later implementation: clearing individual curves, clearing individual labels, etc.
+\end{itemize}
+\textbf{Case 1: ``method'' is ``setConfig''}
 \begin{itemize}
 \item ``clearData'' : ``all'' (This clears the data from the plot and the plotter memory. It is worthwhile in the future to implement, like, clearing a single curve)
 \item ``setAxisLabels'' : <list(<string>,<string>)> (first one in the list is x-axis label, second one is y-axis label)
@@ -149,6 +158,8 @@ In this case the dictionary that goes with the params will have the form \{``xva
 
 \textbf{Case 3: ``method'' is ``fitrequest''}
 In this case the dictionary that goes with params will be \{``curve'':<integer>\}, where the integer is the number of the curve whose fit we want to retrieve
+
+\textbf{Important note:} The strings in \{<string>:<any>,...\} must consist of a word starting with a lowercase letter, followed by one or more words starting with an uppercase letter, without spaces, so a possible dictionary to go with params could have the form like {\fontspec{sourcecodepro} \{ {''}firstSecond{''}: <any> \}}. This is crucial. Inside the program, it does string parsing by detecting the locations of the capital letters, and then it calls the corresponding functions, which have exactly the same name but with no capital letter and with an underscore separator. So the function called when parameter ``firstSecond'' will be called ``first\_second''. See Section~\ref{basicprinciples} for a more detailed explanation of the structure.  
 
 \end{tcolorbox}
 
