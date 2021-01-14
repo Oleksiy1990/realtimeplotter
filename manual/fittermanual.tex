@@ -33,6 +33,7 @@
 \usepackage{tcolorbox}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
+\usepackage{comment}
 
 %%% HEADERS & FOOTERS
 \usepackage{fancyhdr} % This should be set AFTER setting up the page geometry
@@ -68,7 +69,7 @@
 
 \begin{itemize}
 	\item File and folder names are given in the following font {\fontspec{QTCascadetype} myfavoritefile.py} 
-	\item Two
+	\item Angled brackets with a datatype inside, so like <integer> mean that the user must provide one instance of the corresponding data type. It is possible that one has to provide lists, in which case the data type of the entries in the list will also be provided in angles brackets, so say a list of two strings would be <list(<string>,<string>)>. If there are several data types possible (which should not happen too much), they will be separated by a comma (so say <integer, string>); do NOT interpret this as a list of two entries, this is integer OR string, one set of single brackets means only one instance. If we don't want to specify the datatype, we will use the word ``any'', and we will use ... to denote an undefined number; for example, a list of integers of arbitrary length will be given as <list(<integer>,...)>
 	\item Three
 \end{itemize}
 
@@ -86,7 +87,77 @@ The main server class {\fontspec{sourcecodepro} TCPIPserver} is located in file 
 
 \section{TCP/IP commands}
 
-All commands must be sent as character strings in utf-8 encoding for now (if that's impossible, one could implement ascii encoding/decoding procedure). Most of the times, commands must be separated with a semicolon [;]. Different options within a single command must be separated with a comma [,]. 
+\subsection{General format of commands}
+
+All commands must be sent as character strings in \textbf{utf-8} encoding (if that's impossible, one could implement ascii encoding/decoding procedure, but it's not done yet). Each individual command must conform to JSON-RPC2.0 standard. Therefore the strings look as follows:
+
+\begin{tcolorbox}[title=JSON-RPC2.0 command format]
+
+
+{\fontfamily{pcr}\selectfont \{ ``jsonrpc'': ``2.0'', ``method'': <string>, ``params'': <dictionary>, ``id'': <integer> \}}
+
+where the dictionary corresponding to ``params'' is a data structure corresponding to the python dictionary and has the format \{<string>:<any>,...\}, so it is a list of comma-separated pairs, of arbitrary length, where inside each pair itself the entries are separated by a colon. The first element of each pair is a string (that's known as the \textit{key}), and the second element can be in principle any datatype, including a dictionary itself (that's known as \textit{value}). Note the curly braces around: they must be there. 
+
+For those who program in Python and understand the lingo: the value corresponding ``params'' has the standard form of a Python dictionary, with all keys being strings. For those who do not program in Python and do not understand the lingo: make sure to build this dictionary exactly in the format described above. 
+
+\end{tcolorbox}
+
+
+\subsection{Available ``method'' values and responses from the server}
+
+As of now, the implemented methods are 
+\begin{itemize}
+\item {\fontspec{sourcecodepro} {''}config{''}} This will send configuration parameters to the plotter and fitter, such as axis labels, plot label, legend labels, as well as what kind of function to plot, what are the plot starting parameters, plot limits, etc.
+\item {\fontspec{sourcecodepro} {''}data{''}} This send data point by point to the plotter. Once the plotter receives each data point, it immediately puts it on the screen
+\item {\fontspec{sourcecodepro} {''}fitrequest{''}} This tells the plotter which fit to send back to the client. 
+\end{itemize}
+
+whenever the method is ``config'' or ``data'', the server send to the client a JSON-RPC2.0 string of the following form: 
+
+{\fontspec{sourcecodepro} \{ {''}jsonrpc{''}: {''}2.0{''}, {''}result{''}: {''}MessageReceived{''}\}}
+
+Whenever the method is ``fitrequest'', the server will respond as follows: 
+
+{\fontspec{sourcecodepro} \{ {''}jsonrpc{''}: {''}2.0{''}, {''}result{''}: <dictionary>\}}
+
+and the result dictionary will contain fit results in the form like 
+
+{\fontspec{sourcecodepro} \{ {''}frequency{''}: \{{''}fitvalue{''}: 100000., {''}fiterror{''}: 3000.\}, ... , {''}costfunction{''}: 200. \}}
+
+so the result will contain a dictionary of fit parameters with their corresponding fit values and possibly fit errors, and finally it will also contain the minimum cost function that was obtained after optimization.  One could also imagine extending this dictionary of results to give more information about the fit, but that should be easy to do given that this is simply extending the dictionary, and one has the tree structure such that on the right inside each colon-separated pair one can have another dictionary (Python lingo: dictionaries can have dictionaries as their values). 
+
+\subsection{Available ``params'' values}
+
+As we have seen, ``params'' in the request must be sent as dictionaries, so in the form \{<string>:<any>,...\}. The following table summarizes what can go into these dictionaries
+
+\begin{tcolorbox}[title=Sending ``params'' to the server]
+
+We list the parameters with an explanation of the possible values (the parameter literal is before the colon, the possible values are after the colon, explanation in parentheses
+
+\textbf{Case 1: ``method'' is ``config''}
+\begin{itemize}
+\item ``clearData'' : ``all'' (This clears the data from the plot and the plotter memory. It is worthwhile in the future to implement, like, clearing a single curve)
+\item ``setAxisLabels'' : <list(<string>,<string>)> (first one in the list is x-axis label, second one is y-axis label)
+\item ``setPlotTitle'' : <string>
+\item ``setPlotLegend'' : <dictionary(<string>:<string>,...)> (The first string in the dictionary has form ``curve1'' for example, etc. which just defines the curve to use, the second string will be the label that we want to put in the legend for that curve)
+\end{itemize}
+... (more commands in the same pattern)
+
+\textbf{Case 2: ``method'' is ``data''}
+In this case the dictionary that goes with the params will have the form \{``xval'':<double>, ``yval'':<double>, ``errorval'': <double> \}
+(this can be modified for adding points to curves, but the logic of it being a dictionary will stay the same)
+
+\textbf{Case 3: ``method'' is ``fitrequest''}
+In this case the dictionary that goes with params will be \{``curve'':<integer>\}, where the integer is the number of the curve whose fit we want to retrieve
+
+\end{tcolorbox}
+
+
+
+ 
+
+
+\begin{comment}
 
 Before any commands can be sent, one needs to write down the IP address and the port of the computer where the server is running. If the server is running on the same computer as the client, the IP address will be [127.0.0.1]. The port can basically be chosen at will, as long as its value is a large number, beyond the range of the standard reserved ports. One also has to establish the buffer size for communication, but that does not matter mostly. A common value is [2048], which corresponds to 2048 bytes.
 
@@ -205,11 +276,7 @@ Remember that each of the commands has to be sent as a separate session of TCP/I
 
 \end{tcolorbox}
 
-
-
-\subsection{A subsection}
-
-More text.
+\end{comment}
 
 \section{Background software and hardware requirements}
 
