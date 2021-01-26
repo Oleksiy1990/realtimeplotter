@@ -16,7 +16,8 @@ from random import randint
 import numpy as np
 from functools import partial
 from socketserver import TCPIPserver
-from interpreter import message_interpreter
+#from interpreter import message_interpreter (that's the old one)
+from JSONinterpreter import JSONread
 from fitterclass import GeneralFitter1D, PrefitterDialog
 import fitmodelclass as fm
 import helperfunctions
@@ -174,6 +175,8 @@ class MainWindow(QtGui.QMainWindow):
         #numbers of x-axis points can be processed uniformly 
         self.legend_label_list = []
 
+        self.myJSONread = JSONread()
+
         # This is the number of datasets in the current state of the class instance
         self.num_datasets = 0
         self.arePlotsCleared = True
@@ -275,15 +278,23 @@ class MainWindow(QtGui.QMainWindow):
 
     ###### End of __init__()
 
-    def interpret_message(self,message):
+    def interpret_message(self,message: str) -> None:
         """
         Message is supposed to be a string. 
         The result is a list of tuples. Each tuple has the form 
         ("function name",argument)
         """
-        interpretation_result = message_interpreter(message)
+        if (message == "Done") or (message == ""):
+            return None # This is because somehow socketserver.py sends these things.
+            # TODO: improve the socket server class
+
+        interpretation_result = self.myJSONread.parse_JSON_message(message)
         for res in interpretation_result:
-            function_to_call = getattr(self,res[0],"nofunction")
+            # TODO: debug this one, apparently it gets a string
+            #TODELETE
+            print(res)
+            function_to_call = getattr(self,res[0],self.nofunction)
+            type(function_to_call)
             function_to_call(res[1])
         self.message_processed = True
     
