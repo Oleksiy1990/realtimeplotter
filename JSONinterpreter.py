@@ -148,6 +148,7 @@ class JSONread():
             if keystring in params_dict.keys():
                 data = params_dict[keystring]
                 output.append((self.__message_key_to_function_name(keystring),data))
+                # output command is message key with all lowercase, underscore_separated
                 params_dict.pop(keystring)
         if not output: # this will evaluate to False if output is empty 
             print("Message from Module {:s}, Class {:s} function {:s} :".format(__name__,
@@ -222,7 +223,6 @@ class JSONread():
             return JSONread.error_return
        
         if params_dict.get("dataPoint"): # if this evaluates to True, is means that this key is given, so we are sending a single data point
-            #TODO: Define plot_single_datapoint
             return [("plot_single_datapoint",params_dict["dataPoint"])]
         elif params_dict.get("pointList"):
             return [("plot_single_datapoint",single_dict) for single_dict in params_dict["pointList"]]

@@ -21,6 +21,7 @@ from JSONinterpreter import JSONread
 from fitterclass import GeneralFitter1D, PrefitterDialog
 import fitmodelclass as fm
 import helperfunctions
+from typing import Optional, Tuple, List, Any, Union
 
 pg.setConfigOptions(crashWarning=True)
 
@@ -117,8 +118,9 @@ class Worker(QtCore.QRunnable):
 
 class MainWindow(QtGui.QMainWindow):
 
-    def __init__(self, aTCPIPserver,aTCPIPServerTwoway):
-        super().__init__()
+    def __init__(self, aTCPIPserver,aTCPIPServerTwoway,is_testing=False):
+        if not is_testing:
+            super().__init__()
 
         maxthreads_threadpool = 5
         
@@ -146,6 +148,7 @@ class MainWindow(QtGui.QMainWindow):
             differential_evolution, etc. Check scipy.optimize documentation
         
         """
+        self.xaxis_name = "x"
         self.yaxis_name = "y"
         self.err_name = "err"
         self.fit_cropbounds_name = "fitcropbounds"
@@ -160,7 +163,8 @@ class MainWindow(QtGui.QMainWindow):
 
         self.fitmethod_string = "differential_evolution"
 
-        self.all_instance_attribute_names = [self.yaxis_name,
+        self.all_instance_attribute_names = [self.xaxis_name,
+                self.yaxis_name,
                 self.err_name,
                 self.fit_cropbounds_name,
                 self.plot_line_name,
@@ -170,10 +174,11 @@ class MainWindow(QtGui.QMainWindow):
                 self.errorbar_pen_name,
                 self.fitmodel_instance_name]
 
-        self.x = [] # This is the x-axis for all plots
+        #self.x = [] # This is the x-axis for all plots
         # NOTE: Maybe we will have to change this so that plots with different 
         #numbers of x-axis points can be processed uniformly 
         self.legend_label_list = []
+        self.legend_label_dict = {}
 
         self.myJSONread = JSONread()
 
@@ -181,6 +186,11 @@ class MainWindow(QtGui.QMainWindow):
         self.num_datasets = 0
         self.arePlotsCleared = True
         self.prefitDialogWindow = None
+
+        if is_testing:
+            return None
+
+        #================== Below is the stuff for building the GUI itslef
 
         # the main window is the one holding the plot, and some buttons below. 
         #we make it a vertical box QVBoxLayout, then in this vertical box structure
@@ -289,10 +299,10 @@ class MainWindow(QtGui.QMainWindow):
             # TODO: improve the socket server class
 
         interpretation_result = self.myJSONread.parse_JSON_message(message)
+        # the line above produces a list of tuples form the JSON-RPC message
+        # the first element of the tuple is always the string name of the function to call
+        # the second element is always the parameter to feed into the function
         for res in interpretation_result:
-            # TODO: debug this one, apparently it gets a string
-            #TODELETE
-            print(res)
             function_to_call = getattr(self,res[0],self.nofunction)
             type(function_to_call)
             function_to_call(res[1])
@@ -555,93 +565,132 @@ class MainWindow(QtGui.QMainWindow):
             result = [np.array(arg) for arg in args]
             return result
 
+
+    def _create_plotline(self,curvenumber: int) -> bool:
+        """
+        Just a helper function in order to create the plot line if it doesn't already
+        exist
+        This is for adding new curves to the plot. Do not call on existing curves!
+        """
+        # First check if the legend label already exists, and if not, add an automatic label
+        # to just give the curve number
+        if "curve{:d}".format(curvenumber) not in self.legend_label_dict:
+            self.legend_label_dict["curve{:d}".format(curvenumber)] = "c{:d}".format(curvenumber)
+
+        # Now set all the attributes to make sure that the corresponding curve exists
+        setattr(self, self.xaxis_name + "{:d}".format(curvenumber),[])
+        setattr(self, self.yaxis_name + "{:d}".format(curvenumber),[])
+        setattr(self, self.err_name + "{:d}".format(curvenumber),[])
+        setattr(self, self.pen_name + "{:d}".format(curvenumber), pg.mkPen(color=self.colorpalette[curvenumber],
+                                                          style=QtCore.Qt.DashLine))
+
+        setattr(self, self.errorbar_pen_name + "{:d}".format(curvenumber),
+                 pg.mkPen(color=self.colorpalette[curvenumber],
+                          style=QtCore.Qt.SolidLine))
+        setattr(self, self.plot_line_name + "{:d}".format(curvenumber),
+                 self.graphWidget.plot(symbol="o", name=self.legend_label_dict["curve{:d}".format(curvenumber)],
+                                       pen=getattr(self, self.pen_name + "{:d}".format(curvenumber)),
+                                       symbolBrush=pg.mkBrush(self.colorpalette[curvenumber])))
+        return True
+
+
     # This function is for real-time plotting of data points, 
     #just as they come in through TCP/IP
     # this is called directly from interpreter basically!
-    def generate_plot_pointbypoint(self,datapoint):
+    #def generate_plot_pointbypoint(self,datapoint): # this is the old name for the plotting function
+    def plot_single_datapoint(self,plot_single_datapoint_arg: dict) -> bool:
         """
-        data points are supposed to be sent as tuples in the format (x_val,[y1_val,y2_val,...],[y1_err,y2_err,...]). If the length of the tuple is 3, we have error bars, if the length of the tuple is 2, we do not have error bars
+        OLD: data points are supposed to be sent as tuples in the format (x_val,[y1_val,y2_val,...],[y1_err,y2_err,...]). If the length of the tuple is 3, we have error bars, if the length of the tuple is 2, we do not have error bars
         """
 
-        if len(datapoint) == 2:
-            (independent_var,dependent_vars) = datapoint
-            if len(self.legend_label_list) == 0:
-                self.legend_label_list = ["c{:d}".format(idx) for idx in range(len(dependent_vars))]
-            if len(self.x) == 0: # This means that the array is still empty
-                self.arePlotsCleared = False
-                [setattr(self,self.yaxis_name+"{:d}".format(idx),[]) 
-                        for idx in range(len(dependent_vars))] # setting the data values
-                [setattr(self,self.pen_name+"{:d}".format(idx),
-                    pg.mkPen(color=self.colorpalette[idx],style=QtCore.Qt.DashLine)) 
-                    for idx in range(len(dependent_vars))] # creating the pen for lines
-                [setattr(self,self.plot_line_name+"{:d}".format(idx),
-                    self.graphWidget.plot(symbol="o",name=self.legend_label_list[idx],
-                    pen=getattr(self,"pen{:d}".format(idx)),
-                    symbolBrush = pg.mkBrush(self.colorpalette[idx]))) 
-                    for idx in range(len(dependent_vars))] # initializing the plot itself
-                #setattr(self,self.legend_item_name,self.graphWidget.addLegend()) # legend
-            if self.arePlotsCleared:
-                [setattr(self,self.plot_line_name+"{:d}".format(idx),
-                    self.graphWidget.plot(symbol="o",name=self.legend_label_list[idx],
-                    pen=getattr(self,"pen{:d}".format(idx)),
-                    symbolBrush = pg.mkBrush(self.colorpalette[idx]))) 
-                    for idx in range(len(dependent_vars))]
-                #setattr(self, self.legend_item_name, self.graphWidget.addLegend()) # legend
-            self.x.append(independent_var)
-            for idx in range(len(dependent_vars)):
-                getattr(self,self.yaxis_name+"{:d}".format(idx)).append(dependent_vars[idx])
-                arrays_toplot = self.convert_to_numpy(self.x,
-                        getattr(self,self.yaxis_name+"{:d}".format(idx)))
-                getattr(self,self.plot_line_name+"{:d}".format(idx)).setData(*arrays_toplot)
+        # =============== Data format check ================================
+        # We first have to check if the data format for this data point dictionary is correct
+        # if it is not, we don't plot anything
+        possible_datapoint_keys = ["curveNumber", "xval", "yval", "yerr", "xerr"]
+        critical_keys = ["curveNumber", "xval", "yval"]
+        if isinstance(plot_single_datapoint_arg,dict):
+            # First check that all keys supplied are legal
+            if not all([key in possible_datapoint_keys for key in plot_single_datapoint_arg.keys()]):
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
+                print("Some of the keys you supplied to dataPoint are not in the legal key list. Here is the legal key list: {}. Not doing anything".format(possible_datapoint_keys))
+                return False
+            # Now check that we have the absolutely necessary keys for plotting the point
+            if not all([crit_key in plot_single_datapoint_arg for crit_key in critical_keys]):
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
+                print("You must provide at least all of these keys {} to plot a point, but you didn't. Not plotting anything".format(
+                        critical_keys))
+                return False
+            # Now check that the curve number is an integer
+            if not isinstance(plot_single_datapoint_arg["curveNumber"],int):
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
+                print("You put a curve number that is not an integer. This is not allowed")
+                return False
+            # Now check that the xval is either an intereg or a float
+            if not isinstance(plot_single_datapoint_arg["xval"],(int,float)):
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
+                print("Your xval is not numeric. This is not allowed")
+                return False
+            # Now check that the yval is either an integer or a float
+            if not isinstance(plot_single_datapoint_arg["yval"],(int,float)):
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
+                print("Your yval is not numeric. This is not allowed")
+                return False
+            # Now check if xerr, if it is given, is an integer or a float
+            if "xerr" in plot_single_datapoint_arg:
+                if not isinstance(plot_single_datapoint_arg["xerr"],(int,float)):
+                    print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
+                    print("Your xerr is not numeric. This is not allowed")
+                    return False
+                is_this_xerr_given = True
+            else:
+                is_this_xerr_given = False
+            # Now check if yerr, if it is given, is an integer or a float
+            if "yerr" in plot_single_datapoint_arg:
+                if not isinstance(plot_single_datapoint_arg["yerr"],(int,float)):
+                    print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
+                    print("Your yerr is not numeric. This is not allowed")
+                    return False
+                is_this_yerr_given = True
+            else:
+                is_this_yerr_given = False
 
-            self.num_datasets = len(dependent_vars)
+            # ======= Done with syntax checking for the message =============
+            # If we made it to here, it means that the message into plot_single_datapoint is correct
+
+            this_curvenumber = plot_single_datapoint_arg["curveNumber"]
+            # This is the case when the plot line already exists
+            if not hasattr(self,self.plot_line_name+"{:d}".format(this_curvenumber)):
+                self._create_plotline(this_curvenumber)
+
+            getattr(self, self.xaxis_name + "{:d}".format(this_curvenumber)).append(plot_single_datapoint_arg["xval"])
+            getattr(self, self.yaxis_name + "{:d}".format(this_curvenumber)).append(plot_single_datapoint_arg["yval"])
+            # This is the case when the points come with error bars
+            if is_this_yerr_given is True:
+                getattr(self, self.err_name + "{:d}".format(this_curvenumber)).append(
+                    plot_single_datapoint_arg["yerr"])
+                arrays_toplot = self.convert_to_numpy(getattr(self,self.xaxis_name + "{:d}".format(this_curvenumber)),
+                                                      getattr(self,self.yaxis_name + "{:d}".format(this_curvenumber)),
+                                                      getattr(self,self.err_name + "{:d}".format(this_curvenumber)))
+                setattr(self, self.errorbar_item_name + "{:d}".format(this_curvenumber),
+                        pg.ErrorBarItem(x=arrays_toplot[0], y=arrays_toplot[1],
+                                        top=arrays_toplot[2], bottom=arrays_toplot[2],
+                                        pen=getattr(self, self.errorbar_pen_name + "{:d}".format(this_curvenumber))))
+                self.graphWidget.addItem(getattr(self, self.errorbar_item_name + "{:d}".format(this_curvenumber)))
+                getattr(self, self.plot_line_name + "{:d}".format(this_curvenumber)).setData(*arrays_toplot[0:2])
+            else:
+                arrays_toplot = self.convert_to_numpy(
+                    getattr(self, self.xaxis_name + "{:d}".format(this_curvenumber)),
+                    getattr(self, self.yaxis_name + "{:d}".format(this_curvenumber)))
+                getattr(self, self.plot_line_name + "{:d}".format(this_curvenumber)).setData(*arrays_toplot[0:2])
+            return True
+
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
+            print("You supplied something other than a dictionary as the function argument. Not doing anything")
+            return False
 
 
-        if len(datapoint) == 3:
-            (independent_var,dependent_vars,errorbar_vars) = datapoint
-            if len(self.legend_label_list) == 0:
-                self.legend_label_list = ["c{:d}".format(idx) for idx in range(len(dependent_vars))]
-            if len(self.x) == 0: # This means that the array is still empty
-                self.arePlotsCleared = False
-                [setattr(self,self.yaxis_name+f"{idx}",[]) 
-                        for idx in range(len(dependent_vars))]
-                [setattr(self,self.err_name+f"{idx}",[]) 
-                        for idx in range(len(dependent_vars))]
-                [setattr(self,self.pen_name+f"{idx}",pg.mkPen(color=self.colorpalette[idx],
-                    style=QtCore.Qt.DashLine)) for idx in range(len(dependent_vars))]
-                [setattr(self,self.errorbar_pen_name+f"{idx}",
-                    pg.mkPen(color=self.colorpalette[idx],
-                    style=QtCore.Qt.SolidLine)) for idx in range(len(dependent_vars))]
-                [setattr(self,self.plot_line_name+f"{idx}",
-                    self.graphWidget.plot(symbol="o",name=self.legend_label_list[idx],
-                    pen=getattr(self,self.pen_name+f"{idx}"),
-                    symbolBrush = pg.mkBrush(self.colorpalette[idx]))) 
-                    for idx in range(len(dependent_vars))]
-
-            self.x.append(independent_var)
-            if self.arePlotsCleared:
-                [setattr(self,self.plot_line_name+f"{idx}",
-                    self.graphWidget.plot(symbol="o",name=self.legend_label_list[idx],
-                    pen=getattr(self,self.pen_name+f"{idx}"),
-                    symbolBrush = pg.mkBrush(self.colorpalette[idx]))) 
-                    for idx in range(len(dependent_vars))]
-                #setattr(self, self.legend_item_name, self.graphWidget.addLegend())  # legend
-
-            for idx in range(len(dependent_vars)):
-                getattr(self,self.yaxis_name+f"{idx}").append(dependent_vars[idx])
-                getattr(self,self.err_name+f"{idx}").append(errorbar_vars[idx])
-                arrays_toplot = self.convert_to_numpy(self.x,getattr(self,self.yaxis_name+f"{idx}"),getattr(self,self.err_name+f"{idx}"))
-                setattr(self,self.errorbar_item_name+f"{idx}",
-                        pg.ErrorBarItem(x = arrays_toplot[0],y =arrays_toplot[1],
-                        top = arrays_toplot[2],bottom =arrays_toplot[2],
-                        pen=getattr(self,self.errorbar_pen_name+f"{idx}")))
-                self.graphWidget.addItem(getattr(self,self.errorbar_item_name+f"{idx}"))
-                getattr(self,self.plot_line_name+f"{idx}").setData(*arrays_toplot[0:2])
-
-            self.num_datasets = len(dependent_vars)
-
-
-    def clear_plot(self,dummyargument):
+    def clear_plot(self,dummyargument: str):
         """
         This only clear the visual from the plot, it doesn't clear the saved data
         """
@@ -650,8 +699,8 @@ class MainWindow(QtGui.QMainWindow):
         if hasattr(self, self.legend_item_name):
             getattr(self, self.legend_item_name).clear()
 
-    def clear_data(self,data_line_name_string):
-        if data_line_name_string == "all":
+    def clear_data(self,clear_data_arg: int) -> bool:
+        if clear_data_arg == "all":
             self.x = []
             for idx in range(MAX_CURVES):
                 for attr_name in self.all_instance_attribute_names:
@@ -665,36 +714,65 @@ class MainWindow(QtGui.QMainWindow):
             self.legend_label_list = []
             if hasattr(self, self.legend_item_name):
                 getattr(self, self.legend_item_name).clear()
-            return None
+            return True
         # TODO maybe implement the idea of deleting curves one by one
-        else:
-            return None # for now, so that it doesn't fail
+        elif isinstance(clear_data_arg,int):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"clear_data"))
+            print("This argument type has not been implemented yet. Doing nothing")
+            return False # for now, so that it doesn't fail
             # The code below is unreachable, but that's OK, it's not ready yet
-            try:
-                curve_to_delete = int(data_line_name_string)
-                if hasattr(self,self.yaxis_name+f"{curve_to_delete}"):
-                    setattr(self,self.yaxis_name+f"{curve_to_delete}",[])
-                    #getattr(self.self.plot_line_name+f"{curve_to_delete}").removeItem()
-                    self.graphWidget.removeItem(getattr(self,self.plot_line_name+f"{curve_to_delete}"))
-                else:
-                    print("You gave a non-existent curve number, it cannot be deleted, not doing anything")
-                if hasattr(self,self.err_name+f"{curve_to_delete}"):
-                    setattr(self,self.err_name+f"{curve_to_delete}",[])
-                    self.graphWidget.removeItem(getattr(self,self.err_name+f"{curve_to_delete}"))
-                self.num_datasets -= 1
-            except:
-                print(f"Error message from Class {self.__class__.__name__} function clear_data: you put an invalid argument. Not clearing any data")
-            return None
-
-    def set_axis_labels(self,axis_labels):
-        self.graphWidget.setLabels(bottom=axis_labels[0],left=axis_labels[1])
-    def set_plot_title(self,plotTitle):
-        self.graphWidget.setTitle(title=plotTitle)
-    def set_plot_legend(self,legendlabels):
-        if len(self.x) == 0:
-            self.legend_label_list = legendlabels
         else:
-            print("Message from Class {} function set_plot_legend: you must set labels to plot legend before sending data".format(self.__class__.__name__))
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"clear_data"))
+            print("Your argument to clear_data is: {} . This is not allowed. Not doing anything".format(clear_data_arg))
+            return False
+
+    def set_axis_labels(self,axis_labels_arg: List[str]) -> bool:
+        if len(axis_labels_arg) != 2:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_axis_labels"))
+            print("You supplied something other than 2 arguments to this function. This is not allowed, you must supply a list of exactly 2 strings, for x-label and y-label. Not doing anything")
+            return False
+        if all([isinstance(entry,str) for entry in axis_labels_arg]):
+            self.graphWidget.setLabels(bottom=axis_labels_arg[0],left=axis_labels_arg[1])
+            return True
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_axis_labels"))
+            print("You supplied two arguments, but at least one is not of type str. This is not allowed. Not doing anything.")
+            return False
+
+    def set_plot_title(self,plot_title_arg: str) -> bool:
+        if isinstance(plot_title_arg,str):
+            self.graphWidget.setTitle(title=plot_title_arg)
+            return True
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_plot_title"))
+            print("You supplied something other than 1 argument into this function, or the argument is not a string. Not doing anything")
+            return False
+    
+    def set_plot_legend(self,set_plot_legend_arg: dict) -> bool:
+        if isinstance(set_plot_legend_arg,dict):
+            # the case that our plot legend parameter is a dictionary, as expected
+            if all([isinstance(key,str) for key in set_plot_legend_arg]):
+                # if all keys and values are strings, as expected, we save them
+                self.legend_label_dict = set_plot_legend_arg
+                self.legend_label_list = list(set_plot_legend_arg.values())
+            else:
+                # else we throw away everything that is not strings
+                for key in set_plot_legend_arg:
+                    if (not isinstance(key,str)) or (not isinstance(set_plot_legend_arg[key],str)):
+                        print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_plot_legend"))
+                        print("You inserted a key-value pair where one of the elements is not a string: {} : {}. This is not allowed, deleting this key-value pair".format(key,set_plot_legend_arg[key]))
+                        set_plot_legend_arg.pop(key)
+                # and once we deleted all the non-string inputs, we can save the dictionary
+                self.legend_label_dict = set_plot_legend_arg
+                self.legend_label_list = list(set_plot_legend_arg.values())
+            return True
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_plot_legend"))
+            print("The parameter that you gave into set_plot_legend is not a dictionary. This is not allowed, erasing legends")
+            self.legend_label_dict = {}
+            self.legend_label_list = []
+            return False
+
     def set_fit_function(self,fitfunctionname):
         if isinstance(fitfunctionname,str):
             fitfunction_index = self.FitFunctionChoice.findText(fitfunctionname)
