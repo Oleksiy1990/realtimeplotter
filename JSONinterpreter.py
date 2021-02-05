@@ -38,9 +38,9 @@ class JSONread():
     doClear_message_keys = ["clearData"]
 
     # options to put as params keys for setConfig method
-    setConfig_message_keys = ["setAxisLabels",
-        "setPlotTitle",
-        "setPlotLegend"]
+    setConfig_message_keys = ["axisLabels",
+        "plotTitle",
+        "plotLegend"]
 
     # options to put as params keys for addData method
     addData_message_keys = ["dataPoint","pointList"]
@@ -181,7 +181,8 @@ class JSONread():
         for keystring in JSONread.setConfig_message_keys: # check out the list of all possible keys to config
             if keystring in params_dict.keys():
                 data = params_dict[keystring]
-                output.append((self.__message_key_to_function_name(keystring),data))
+                # we have to append this "set_" because that's what the functions are called in the main program
+                output.append(("set_"+self.__message_key_to_function_name(keystring),data))
                 params_dict.pop(keystring)
         if not output: # this will evaluate to False if output is empty 
             print("Message from Module {:s}, Class {:s} function {:s} :".format(__name__,
@@ -310,9 +311,9 @@ def config_interpreter(fullmessage = ""):
     # This dictionary holds all possible commands that can be sent
     #in the config string
     config_command_dictionary = {"process_cleardata" : r"clear_data|cleardata",
-        "process_setAxisLabels" : r"set_axis_labels|setaxislabels|setAxisLabels",
-        "process_setPlotTitle" : r"set_plot_title|setplottitle|setPlotTitle",
-        "process_setPlotLegend" : r"set_plot_legend|setplotlegend|setPlotLegend",
+        "process_axisLabels" : r"set_axis_labels|axisLabels|axisLabels",
+        "process_plotTitle" : r"set_plot_title|plotTitle|plotTitle",
+        "process_plotLegend" : r"set_plot_legend|plotLegend|plotLegend",
         "process_setFitFunction" : r"setfitfunction|set_fit_function",
         "process_setCurveNumber" : r"setcurvenumber|set_curve_number",
         "process_setStartingParameters" : r"setstartparams|setstartparameters|set_starting_values|set_starting_params|set_starting_parameters",
@@ -386,10 +387,10 @@ def process_cleardata(input_pattern_raw_string,message_parts_list):
            return ("clear_data",search_res.group(2))
     return None
 
-def process_setAxisLabels(input_pattern_raw_string,message_parts_list):
-    full_SetAxislabels_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
+def process_axisLabels(input_pattern_raw_string,message_parts_list):
+    full_axisLabels_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
     for individual_message in message_parts_list:
-        search_res = re.search(full_SetAxislabels_pattern,individual_message)
+        search_res = re.search(full_axisLabels_pattern,individual_message)
         if search_res:
             axisLabels = search_res.group(2)
             each_axis_label = axisLabels.split(",")
@@ -397,23 +398,23 @@ def process_setAxisLabels(input_pattern_raw_string,message_parts_list):
                 message_parts_list.remove(individual_message)
                 return ("set_axis_labels",each_axis_label)
             else:
-                print("Message from function process_setAxisLabels: set_axis_labels argument must be two strings separated by a comma. Command must be of the form: set_axis_labels myFavorite X name , myFavorite Y name; Now it's not in that form. Not labeling axes")
+                print("Message from function process_axisLabels: set_axis_labels argument must be two strings separated by a comma. Command must be of the form: set_axis_labels myFavorite X name , myFavorite Y name; Now it's not in that form. Not labeling axes")
     return None
 
-def process_setPlotTitle(input_pattern_raw_string,message_parts_list):
-    full_SetPlotTitle_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
+def process_plotTitle(input_pattern_raw_string,message_parts_list):
+    full_plotTitle_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
     for individual_message in message_parts_list:
-        search_res = re.search(full_SetPlotTitle_pattern,individual_message)
+        search_res = re.search(full_plotTitle_pattern,individual_message)
         if search_res:
             plottitle = search_res.group(2)
             message_parts_list.remove(individual_message)
             return ("set_plot_title",plottitle)
     return None
 
-def process_setPlotLegend(input_pattern_raw_string,message_parts_list):
-    full_SetPlotLegend_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
+def process_plotLegend(input_pattern_raw_string,message_parts_list):
+    full_plotLegend_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
     for individual_message in message_parts_list:
-        search_res = re.search(full_SetPlotLegend_pattern,individual_message)
+        search_res = re.search(full_plotLegend_pattern,individual_message)
         if search_res:
             legend_labels_list = []
             legendLabels = search_res.group(2)

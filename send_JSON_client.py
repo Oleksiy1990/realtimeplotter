@@ -33,7 +33,7 @@ mymessagedict3 = {"jsonrpc":"2.0",
 print(mymessagedict3)
 
 mymethod2 = "setConfig"
-myparams2 = {"setAxisLabels":["my_x","my_y"],"setPlotTitle":"my_plot_title"}
+myparams2 = {"axisLabels":["my_x","my_y"],"plotTitle":"my_plot_title"}
 mymessagedict2 = {"jsonrpc":"2.0", 
                  "method":mymethod2,
                  "params":myparams2,

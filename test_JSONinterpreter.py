@@ -74,22 +74,22 @@ def test_JSONread_parse_JSON_message():
     message_setConfig_y1 = {
         "jsonrpc": "2.0",
         "method": "setConfig",
-        "params": {"setAxisLabels":["myfavx","myfavy"]},
+        "params": {"axisLabels":["myfavx","myfavy"]},
         "id": 0
     }
 
     message_setConfig_y2 = {
         "jsonrpc": "2.0",
         "method": "setConfig",
-        "params": {"setPlotTitle":"title"},
+        "params": {"plotTitle":"title"},
         "id": 0
     }
 
     message_setConfig_y3 = {
         "jsonrpc": "2.0",
         "method": "setConfig",
-        "params": {"setPlotTitle": "title",
-                   "setAxisLabels":["myfavx","myfavy"]},
+        "params": {"plotTitle": "title",
+                   "axisLabels":["myfavx","myfavy"]},
         "id": 0
     }
 
