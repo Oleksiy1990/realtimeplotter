@@ -9,13 +9,13 @@ _prefit functions are called from fitmodelclass.do_prefit(). They are called wit
 ########################  sinewave model
 def sinewave_base(fitparams,independent_var):
     """
-    fitparams = [frequency, amplitude, phase, vertical offset]
+    fitparams = [frequency, amplitude, phase, verticaloffset]
     """
     return fitparams[1]*np.sin(2*np.pi*fitparams[0]*independent_var + fitparams[2]) + fitparams[3]
 
 def sinewave(fitparams,independent_var,measured_data,errorbars):
     """
-    fitparams = [frequency, amplitude, phase, vertical offset]
+    fitparams = [frequency, amplitude, phase, verticaloffset]
     """
     return (sinewave_base(fitparams,independent_var) - measured_data)/errorbars
 
@@ -29,7 +29,7 @@ def sinewave_paramdict():
     fitparam_dict = {"frequency":None, "amplitude":None, "phase":None, "verticaloffset":None}
     return fitparam_dict
 
-def sinewave_prefit(independent_var, measured_data, errorbars, fitparam_dict, fitparam_bounds_dict, low_pts=5,high_pts=5,num_periods=5):
+def sinewave_prefit(independent_var, measured_data, errorbars, fitparam_dict, fitparam_bounds_dict, low_pts=5,high_pts=5,num_periods=5) -> bool:
     """
     This requires the x-values, y-values, and the error bars (although error bars are not really necessary 
     but it's just for uniformity, one can simply set them all to 1.
@@ -40,63 +40,61 @@ def sinewave_prefit(independent_var, measured_data, errorbars, fitparam_dict, fi
    
     if not fitparam_dict:
         print("Message from sinewave_prefit: You did not supply a dictionary of parameters to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
-        return None
+        return False
 
     if not fitparam_bounds_dict:
         print("Message from sinewave_prefit: You did not supply a dictionary of parameter bounds to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
-        return None
+        return False
+
+    # we want to keep the values for start parameters constant if they have been given externally!
 
     # first we estimate the amplitude
-    if fitparam_dict["amplitude"]:
-        amplitude_est = fitparam_dict["amplitude"]
-    else:
+    if fitparam_dict["amplitude"] is None: # this means that it has not been given externally
         low_est = np.mean(np.partition(measured_data,low_pts)[0:low_pts])
         high_est = -1*np.mean(np.partition(-1*measured_data,high_pts)[0:high_pts])
         amplitude_est = 0.5*(high_est-low_est)
-    
-    amplitude_bounds_est = [0,2*amplitude_est]
-    fitparam_dict["amplitude"] = amplitude_est
-    fitparam_bounds_dict["amplitude"] = amplitude_bounds_est
-    
+        fitparam_dict["amplitude"] = amplitude_est
+
+    if fitparam_bounds_dict["amplitude"] is None: # this means that it has not been given externally
+        if fitparam_dict["amplitude"] > 0:
+            amplitude_bounds_est = [0,2*fitparam_dict["amplitude"]]
+        else:
+            amplitude_bounds_est = [2 * fitparam_dict["amplitude"],0]
+        fitparam_bounds_dict["amplitude"] = amplitude_bounds_est
+
     # now we estimate the verticaloffset
-    if fitparam_dict["verticaloffset"]:
-        vertical_offset_est = fitparam_dict["verticaloffset"]
-        vertical_offset_bounds_est = [vertical_offset_est - 0.3*amplitude_est,vertical_offset_est + 0.3*amplitude_est]
-    else:
+    if fitparam_dict["verticaloffset"] is None:
         low_est = np.mean(np.partition(measured_data,low_pts)[0:low_pts])
         high_est = -1*np.mean(np.partition(-1*measured_data,high_pts)[0:high_pts])
-        vertical_offset_est = low_est+amplitude_est
+        vertical_offset_est = low_est+fitparam_dict["amplitude"]
+        fitparam_dict["verticaloffset"] = vertical_offset_est
+    if fitparam_bounds_dict["verticaloffset"] is None:
+        low_est = np.mean(np.partition(measured_data, low_pts)[0:low_pts])
+        high_est = -1 * np.mean(np.partition(-1 * measured_data, high_pts)[0:high_pts])
         vertical_offset_bounds_est = [low_est,high_est]
-   
-    fitparam_dict["verticaloffset"] = vertical_offset_est
-    fitparam_bounds_dict["verticaloffset"] = vertical_offset_bounds_est
-    
+        fitparam_bounds_dict["verticaloffset"] = vertical_offset_bounds_est
+
     # now we estimate the phase
-    if fitparam_dict["phase"]:
-        phase_est = fitparam_dict["phase"]
-    else:
-        phase_est = 1e-5 #this is just effectively 0
-    phase_bounds_est = [-np.pi,np.pi]
-    
-    fitparam_dict["phase"] = phase_est
-    fitparam_bounds_dict["phase"] = phase_bounds_est
+    if fitparam_dict["phase"] is None:
+        fitparam_dict["phase"] = 1e-5 #this is just effectively 0
+    if fitparam_bounds_dict["phase"] is None:
+        phase_bounds_est = [-np.pi,np.pi]
+        fitparam_bounds_dict["phase"] = phase_bounds_est
 
     # now we estimate the frequency
-    if fitparam_dict["frequency"]:
-        frequency_est = fitparam_dict["frequency"]
-    else:
+    if fitparam_dict["frequency"] is None:
         frequency_est = num_periods/(np.max(independent_var)-np.min(independent_var))
-    frequency_bounds_est = [0.5/(np.max(independent_var)-np.min(independent_var)),
-                            0.5*len(independent_var)/(np.max(independent_var)-np.min(independent_var))]
-   
-    fitparam_dict["frequency"] = frequency_est
-    fitparam_bounds_dict["frequency"] = frequency_bounds_est
+        fitparam_dict["frequency"] = frequency_est
+    if fitparam_bounds_dict["frequency"] is None:
+        frequency_bounds_est = [0.7*fitparam_dict["frequency"],
+                                1.3*fitparam_dict["frequency"]]
+        fitparam_bounds_dict["frequency"] = frequency_bounds_est
 
-    return (fitparam_dict,fitparam_bounds_dict)
+    return True
 
+# ============= The rest not checked yet
 
-
-
+#TODO: Check the other functions
 ########################### damped sinewave model
 
 def damped_sinewave_base(fitparams,independent_var):

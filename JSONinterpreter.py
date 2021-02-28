@@ -46,12 +46,15 @@ class JSONread():
     addData_message_keys = ["dataPoint","pointList"]
 
     # options to put as params keys for doFit method
-    doFit_message_keys = ["setFitFunction",
-        "setCurveNumber",
-        "setStartingParameters",
-        "setStartingParametersLimits",
-        "setCropLimits",
-        "setFitMethod",
+    # Order is important!
+    doFit_message_keys = [
+        "fitFunction",
+        "curveNumber", # we feed the data into the Fitmodel instance here
+        "startingParameters",
+        "startingParametersLimits",
+        "cropLimits",
+        "fitMethod",
+        "fitterOptions",
         "performFitting"]
 
     # options to put as params keys for getFitResult method
@@ -237,7 +240,9 @@ class JSONread():
         for keystring in JSONread.doFit_message_keys:  # check out the list of all possible keys to config
             if keystring in params_dict.keys():
                 data = params_dict[keystring]
-                output.append((self.__message_key_to_function_name(keystring), data))
+                # We have to append "set_" before every function name because that's how
+                # it's done in the main program
+                output.append(("set_"+self.__message_key_to_function_name(keystring), data))
                 params_dict.pop(keystring)
         if not output:  # this will evaluate to False if output is empty
             print("Message from Module {:s}, Class {:s} function {:s} :".format(__name__,
@@ -301,73 +306,6 @@ def message_interpreter_twoway(message_in = ""):
     else:
         return (False,"wrongcommand",)
 
-# I just deleted message_interpreter
-def config_interpreter(fullmessage = ""):
-    """
-    fullmessage is the entire string that comes after config;
-    The idea is that the function message_interpreter calls config_interpreter as a helper function 
-    """
-    
-    # This dictionary holds all possible commands that can be sent
-    #in the config string
-    config_command_dictionary = {"process_cleardata" : r"clear_data|cleardata",
-        "process_axisLabels" : r"set_axis_labels|axisLabels|axisLabels",
-        "process_plotTitle" : r"set_plot_title|plotTitle|plotTitle",
-        "process_plotLegend" : r"set_plot_legend|plotLegend|plotLegend",
-        "process_setFitFunction" : r"setfitfunction|set_fit_function",
-        "process_setCurveNumber" : r"setcurvenumber|set_curve_number",
-        "process_setStartingParameters" : r"setstartparams|setstartparameters|set_starting_values|set_starting_params|set_starting_parameters",
-        "process_doFit" : r"dofit|doFit|do_fit",
-        "process_setCropTuple": r"setCropTuple|set_crop_tuple"}
-
-    # This is the list of the commands that will be returned back to the message_interpreter, and
-    #then to the main program
-    output_command_list = []
-    if not isinstance(fullmessage,str):
-        print("Message from function config_interpreter: The message is not a string. Not doing anything")
-        output_command_list.append(("nofunction",""))
-        return output_command_list
-
-    # We will split the message string into parts now, where the parts are separated 
-    #using semicolons
-    message_parts_list = fullmessage.split(";") 
-
-    if len(message_parts_list) < 1: 
-        print("Message from function config_interpreter: you must specify at least config; and one more command in your string. Not doing anything")
-        output_command_list.append(("nofunction",fullmessage))
-        return output_command_list
-
-    # We will go through the config_command_dictionary and check the configuration string for the list of all
-    #available commands
-    for (function,input_pattern) in config_command_dictionary.items():
-        try:
-            function_to_call = globals()[function]
-        except:
-            print("Such a function is not defined. Check your config_command_dictionary and make sure that the function with the name {} is defined in file interpreter.py".format(function))
-            continue
-        # if we found the function in config_command_dictionary, we call it and feed the 
-        #message_parts_list to it
-        function_output = function_to_call(input_pattern,message_parts_list)
-        # if the function fails, the output should be None, otherwise, it will be a command that can be 
-        #sent to the main program, and we append that command to the output_command_list
-        if function_output is not None:
-            output_command_list.append(function_output)
-
-    # Now we check if there is any message that has not been caught. If there is, output the list of commands 
-    #which have not been parsed so that the user knows what didn't work
-    for individual_message in message_parts_list:
-        if individual_message.isspace() or (individual_message == ""):
-            message_parts_list.remove(individual_message)
-    if len(message_parts_list) > 0:
-        print("Warning from function config_interpreter: you probably made mistakes in the syntax of some commands. There are commands that you sent and that could not be parsed: {}".format(message_parts_list))
-
-    if len(output_command_list) > 0:
-        return output_command_list
-    else:    
-        print("Message from config_parser: no valid configurations found. Not setting any configurations.")
-        output_command_list.append(("nofunction",""))
-        return output_command_list
-
 """
 What follows is a list of functions, all written according to similar design strategy and more or less similar implementation
 in order to parse the particular string messages and return the output to config interpreter for further processing.
@@ -409,115 +347,6 @@ def process_plotTitle(input_pattern_raw_string,message_parts_list):
             plottitle = search_res.group(2)
             message_parts_list.remove(individual_message)
             return ("set_plot_title",plottitle)
-    return None
-
-def process_plotLegend(input_pattern_raw_string,message_parts_list):
-    full_plotLegend_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
-    for individual_message in message_parts_list:
-        search_res = re.search(full_plotLegend_pattern,individual_message)
-        if search_res:
-            legend_labels_list = []
-            legendLabels = search_res.group(2)
-            allLegendLabels = legendLabels.split(",")
-            for legendlabel in allLegendLabels:
-                individual_label_pattern_curvenums = r"(curve|Curve)(\d{1,2})\s+(.*)"
-                individual_label_search_res_curvenums = re.search(individual_label_pattern_curvenums,legendlabel)
-                if individual_label_search_res_curvenums: # TODO: Implement this well
-                    curve_num = int(individual_label_search_res_curvenums.group(2))
-                    legend_string = individual_label_search_res_curvenums.group(3)
-                    legend_labels_list.append((curve_num,legend_string))
-                else:
-                    legend_labels_list.append(legendlabel.strip())
-
-            message_parts_list.remove(individual_message)
-            return ("set_plot_legend",legend_labels_list)
-    return None
-
-def process_setFitFunction(input_pattern_raw_string,message_parts_list):
-    full_SetFitFunction_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
-    for individual_message in message_parts_list:
-        search_res = re.search(full_SetFitFunction_pattern ,individual_message)
-        if search_res:
-            fitfunction_name = search_res.group(2).strip() #use strip() in order to remove any possible leading and trailing whitespace
-            message_parts_list.remove(individual_message)
-            return ("set_fit_function",fitfunction_name)
-    return None
-
-def process_setCurveNumber(input_pattern_raw_string,message_parts_list):
-    full_SetCurveNumber_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
-    for individual_message in message_parts_list:
-        search_res = re.search(full_SetCurveNumber_pattern,individual_message)
-        if search_res:
-            curvenumber_str = search_res.group(2).strip()
-            message_parts_list.remove(individual_message)
-            return ("set_curve_number",curvenumber_str)
-    return None
-
-def process_setStartingParameters(input_pattern_raw_string,message_parts_list):
-    full_SetStartingParameters_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
-    for individual_message in message_parts_list:
-        search_res = re.search(full_SetStartingParameters_pattern,individual_message)
-        if search_res:
-            output_startparam_dict = {}
-            full_startparam_string = search_res.group(2).strip()
-            # Next line means: different parameters are supposed to be separated by a comma
-            startparam_string_split = full_startparam_string.split(",")
-
-            for singleparam_string in startparam_string_split:
-                # Next line means: key and value are supposed to be separated by a colon
-                key_val_pair = singleparam_string.split(":") 
-                if (len(key_val_pair) != 2):
-                    print("Message from file {:s} function process_setStartingParameters: you tried to set this parameter {} but the format is not parameter : value. Ignoring it".format(__file__,key_val_pair))
-                    continue
-                else: 
-                    key = key_val_pair[0].strip()
-                    val = key_val_pair[1].strip()
-                try:
-                    val_float = float(val)
-                    output_startparam_dict[key] = val_float
-                except:
-                    print("Message from Module {} function process_setStartingParameter: in entry {}:{} the value {} cannot be converted to float. Not adding this to output dictionary".format(__name__,key,val,val))
-            message_parts_list.remove(individual_message)
-            return ("set_starting_parameters",output_startparam_dict)
-    return None
-
-def process_setCropTuple(input_pattern_raw_string,message_parts_list):
-    """
-    For now we only set the crop tuples for the fitting purposes, not for the plotting purposes
-    One is supposed to give a command of the form "setCropTuple 5e-3, 15e-3;" or something like that
-    One can also use None if one of the sides should have no crop bound.
-    """
-    full_SetCropTuple_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
-    for individual_message in message_parts_list:
-        search_res = re.search(full_SetCropTuple_pattern,individual_message)
-        if search_res:
-            curvenumber_str = search_res.group(2).strip()
-            crop_bounds_str_list = curvenumber_str.split(",")
-            try:
-                leftbound = float(crop_bounds_str_list[0].strip())
-            except:
-                if crop_bounds_str_list[0].strip() != "None":
-                    print("Message from file {} function process_setCropTuple: the left bound is not a number and not None. Ignoring it and setting it to None".format(
-                        __name__))
-                leftbound = None
-            try:
-                rightbound = float(crop_bounds_str_list[1].strip())
-            except:
-                if crop_bounds_str_list[1].strip() != "None":
-                    print("Message from file {} function process_setCropTuple: the right bound is not a number and not None. Ignoring it and setting it to None".format(
-                        __name__))
-                rightbound = None
-            message_parts_list.remove(individual_message)
-            return ("set_crop_tuple",(leftbound,rightbound))
-    return None
-
-def process_doFit(input_pattern_raw_string,message_parts_list):
-    full_SetDoFit_pattern = r"({:s})\s*".format(input_pattern_raw_string)
-    for individual_message in message_parts_list:
-        search_res = re.search(full_SetDoFit_pattern,individual_message)
-        if search_res:
-            message_parts_list.remove(individual_message)
-            return ("do_fit","")
     return None
 
 if __name__ == "__main__":

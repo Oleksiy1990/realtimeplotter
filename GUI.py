@@ -19,7 +19,8 @@ from socketserver import TCPIPserver
 #from interpreter import message_interpreter (that's the old one)
 from JSONinterpreter import JSONread
 from fitterclass import GeneralFitter1D, PrefitterDialog
-import fitmodelclass as fm
+from fitmodelclass import Fitmodel
+from mathfunctions import fitmodels
 import helperfunctions
 from typing import Optional, Tuple, List, Any, Union
 
@@ -118,6 +119,11 @@ class Worker(QtCore.QRunnable):
 
 class MainWindow(QtGui.QMainWindow):
 
+    DEFINED_FITFUNCTIONS = ["sinewave","damped_sinewave","gaussian"]
+    MAX_NUM_CURVES = 50 # This is a large upper limit on the max number of curves that
+                        # can be plotted at the same time
+    NUMPOINTS_CURVE_DENSE = 350
+
     def __init__(self, aTCPIPserver,aTCPIPServerTwoway,is_testing=False):
         if not is_testing:
             super().__init__()
@@ -148,9 +154,11 @@ class MainWindow(QtGui.QMainWindow):
             differential_evolution, etc. Check scipy.optimize documentation
         
         """
+        # The numerical data inputs
         self.xaxis_name = "x"
         self.yaxis_name = "y"
         self.err_name = "err"
+
         self.fit_cropbounds_name = "fitcropbounds"
         self.plot_line_name = "data_line"
         self.fitplot_line_name = "fit_line"
@@ -175,9 +183,8 @@ class MainWindow(QtGui.QMainWindow):
                 self.fitmodel_instance_name]
 
         #self.x = [] # This is the x-axis for all plots
-        # NOTE: Maybe we will have to change this so that plots with different 
-        #numbers of x-axis points can be processed uniformly 
-        self.legend_label_list = []
+
+        self.legend_label_list = [] # processed in self._create_plotline
         self.legend_label_dict = {}
 
         self.myJSONread = JSONread()
@@ -223,12 +230,12 @@ class MainWindow(QtGui.QMainWindow):
         self.PrefitButton = QtGui.QPushButton("Prefit")
         self.RegisterCurvesButton = QtGui.QPushButton("Reg. cv.")
         self.RegisterCurvesButton.clicked.connect(self.register_available_curves)
-        self.MakeFitButton.clicked.connect(self.process_MakeFit_button)
+        self.MakeFitButton.clicked.connect(self.process_makefit_button)
         self.PrefitButton.clicked.connect(self.process_Prefit_button)
         
         self.FitFunctionChoice = QtGui.QComboBox()
         self.PlotNumberChoice = QtGui.QComboBox()
-        self.FitFunctionChoice.addItems(["None","sinewave","damped_sinewave","gaussian"])
+        self.FitFunctionChoice.addItems(self.DEFINED_FITFUNCTIONS)
         # self.PlotNumberChoice.addItems should be called in the code in order to create a choice which plot to fit 
         MakeFitBoxLayout = QtGui.QHBoxLayout()
         MakeFitBoxLayout.addWidget(self.MakeFitButton)
@@ -300,6 +307,11 @@ class MainWindow(QtGui.QMainWindow):
 
         interpretation_result = self.myJSONread.parse_JSON_message(message)
         # the line above produces a list of tuples form the JSON-RPC message
+
+        # IMPORTANT! Be careful with this because this is where the functions from the received
+        #JSON-RPC message get called, but they are not explicitly written with their names
+        # we use metaprogramming here all over the place with setattr and getattr functions
+
         # the first element of the tuple is always the string name of the function to call
         # the second element is always the parameter to feed into the function
         for res in interpretation_result:
@@ -354,15 +366,18 @@ class MainWindow(QtGui.QMainWindow):
         return None
 
 
-    def nofunction(self,verbatim_message):
+    def nofunction(self,verbatim_message: str) -> None:
         print("Function interpreter.message_interpreter could not determine which function to call based on analyzing the transmitted message. Not calling any function. Here is the message that you transmitted (verbatim): {} \n".format(verbatim_message))
-    
-    def register_available_curves(self):
+
+    # TODO: Get rid of this function and button correctly. They are registered immediately as they come in.
+    def register_available_curves(self) -> None:
         self.PlotNumberChoice.clear()
-        for idx in range(self.num_datasets):
-            if hasattr(self,self.yaxis_name+"{:d}".format(idx)):
+        for idx in range(self.MAX_NUM_CURVES):
+            if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
                 self.PlotNumberChoice.addItem("{:d}".format(idx))        
 
+    # I don't think this is necessary. Probably to delete later
+    # TODO Figure out what this function does, because now it probably will not work
     def checkAndReturnDataPrefit(self):
         """
         This function checks if the correct curve has been chosen, if the 
@@ -401,90 +416,98 @@ class MainWindow(QtGui.QMainWindow):
                 # They are not sorted!
         
 
-    def process_MakeFit_button(self):
-        fitfunction_name = self.FitFunctionChoice.currentText()
-        curve_number = int(self.PlotNumberChoice.currentText())
-        
-        # If prefit has not been done, we need to generate the data and feed it 
-        #into an instance of Fitmodel class before it can be sent to the 
-        #fitter
-        if not hasattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)):
-            result_check_settings = self.checkAndReturnDataPrefit()
-            if result_check_settings is not None:
-                setattr(self,
-                    self.fitmodel_instance_name+"{:d}".format(curve_number),
-                    fm.Fitmodel(fitfunction_name,curve_number,
-                        *result_check_settings))
-            else:
-                print("Message from Class {:s} function process_MakeFit_button: result_check_settings is False, meaning that the data cannot be molded into the correct format to create Fitmodel instance. Check the data".format(self.__class__.__name__))
-                return None
+    def process_makefit_button(self) -> bool:
 
-        aFitter = GeneralFitter1D(getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)))
-        aFitter.setupFit(opt_method=self.fitmethod_string)
-        # we will now check if the crop data has been set and if so, we will perform the cropping before doing the fit
-        if hasattr(self,self.fit_cropbounds_name+"{:d}".format(curve_number)):
-            aFitter.cropdata(getattr(self,self.fit_cropbounds_name+"{:d}".format(curve_number)))
-        fitres = aFitter.doFit()
-        if fitres is True:
-            # If the fit result is good, according to the fitter, we want to plot it
-
-            # First we setup the fit curve 
-            NUMPOINTS_CURVE = 350
-            aXvalsDense = np.linspace(getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).xvals[0],
-                    getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).xvals[-1], NUMPOINTS_CURVE)
-            fitresults_list = list(getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_function_paramdict.values())
-            aYvalsDense = getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_function_base(fitresults_list,aXvalsDense)
-
-            # Now we remove the original line connecting the points but replot
-            #the points themselves, and then plot the dashed line for the fit
-            #through the same point, in the same color as the points
-            measured_data_array = self.convert_to_numpy(self.x,
-                        getattr(self,self.yaxis_name+"{:d}".format(curve_number)))
-            
-            # clear the original plot
-            getattr(self,self.plot_line_name+"{:d}".format(curve_number)).clear()
-            # set the data plotter to have no pen, so draw no line itself
-            setattr(self,self.plot_line_name+"{:d}".format(curve_number),
-                    self.graphWidget.plot(symbol="o",
-                    pen=pg.mkPen(None),
-                    symbolBrush = pg.mkBrush(self.colorpalette[curve_number])))
-                    #name=self.legend_label_list[curve_number]))
-
-
-            # replot the measured data points
-            # this setData below is a method of PlotDataItem
-            getattr(self,self.plot_line_name+"{:d}".format(curve_number)).setData(*measured_data_array[0:2])
-
-            # if the fit plot aleady exists, clear it, because we don't want
-            #multiple plots piling up on each other
-            if hasattr(self,self.fitplot_line_name+"{:d}".format(curve_number)):
-                getattr(self,self.fitplot_line_name+"{:d}".format(curve_number)).clear()
-            
-            # finally make a fit plot line and plot the data to it
-            setattr(self,self.fitplot_line_name+"{:d}".format(curve_number),
-                self.graphWidget.plot(symbol=None,
-                    pen=getattr(self,"pen{:d}".format(curve_number)),
-                    symbolBrush = pg.mkBrush(None)))
-            getattr(self,self.fitplot_line_name+"{:d}".format(curve_number)).setData(aXvalsDense,aYvalsDense)
-
-            # Now let's write the results of the fitting to an output
-            #text box below the main plotting window
-            self.TextBoxForOutput.setCurrentFont(QtGui.QFont("Helvetica",
-                    pointSize=10,
-                    weight = QtGui.QFont.Bold))
-            self.TextBoxForOutput.append("Curve {:d} fit results:".format(curve_number))
-            for (key,val) in getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_function_paramdict.items():
-                self.TextBoxForOutput.setCurrentFont(QtGui.QFont("Helvetica",
-                    pointSize=10,
-                    weight=QtGui.QFont.Normal))
-                self.TextBoxForOutput.append(key+" : "+"{:.06f}".format(val))
-        #this else condition will be used if the fit result is not a success
-        else:
-            print("Message from Class {:s} function process_MakeFit_button: Fit is not successful, not plotting anything".format(self.__class__.__name__))
+        # TODO: Make sure that when a fit is plotted, it doesn't repeat writing the legend name, because it does now
+        # If we are going to do the fit, we should close the prefit dialog window no matter what
         if self.prefitDialogWindow:
             self.prefitDialogWindow.close()
-        #TODELETE
-        print("Fit result dictionary output: ",getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_function_paramdict)
+
+        current_curve_number = int(self.PlotNumberChoice.currentText())
+        if not hasattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_makefit_button"))
+            print("You put a curve number that is not an integer. This is not allowed")
+            return False
+        # Now comes the fitting part
+        # 1) Create a fitter instance
+        currentFitter = GeneralFitter1D(getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)))
+        # 2) setup fit
+        result_setupfit = currentFitter.setup_fit()
+        if result_setupfit is True:
+            # 3) perform the fit
+            result_dofit = currentFitter.do_fit()
+        if result_dofit is True:
+            # 4) If the fit result is good, according to the fitter message, we want to plot it
+            if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).fit_issuccessful is True:
+                aXvalsDense = np.linspace(getattr(self,
+                        self.fitmodel_instance_name+"{:d}".format(current_curve_number)).xvals[0],
+                        getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).xvals[-1],
+                        self.NUMPOINTS_CURVE_DENSE)
+                fitresults_list = list(getattr(self,
+                        self.fitmodel_instance_name+"{:d}".format(current_curve_number)).result_paramdict.values())
+                fitfunction_callable = getattr(fitmodels,
+                        getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).fitfunction_name_string+"_base")
+                aYvalsDense = fitfunction_callable(fitresults_list,aXvalsDense)
+                # Now we remove the original line connecting the points but replot
+                #the points themselves, and then plot the dashed line for the fit
+                #through the same point, in the same color as the points
+                measured_data_array = self.convert_to_numpy(
+                        getattr(self,self.xaxis_name+"{:d}".format(current_curve_number)),
+                            getattr(self,self.yaxis_name+"{:d}".format(current_curve_number)))
+
+                # clear the original plot
+                getattr(self,self.plot_line_name+"{:d}".format(current_curve_number)).clear()
+                # set the data plotter to have no pen, so draw no line itself
+                setattr(self,self.plot_line_name+"{:d}".format(current_curve_number),
+                        self.graphWidget.plot(symbol="o",
+                        pen=pg.mkPen(None),
+                        name=self.legend_label_dict["curve{:d}".format(current_curve_number)],
+                        symbolBrush = pg.mkBrush(self.colorpalette[current_curve_number])))
+
+                # replot the measured data points
+                # this setData below is a method of PlotDataItem
+                getattr(self,self.plot_line_name+"{:d}".format(current_curve_number)).setData(*measured_data_array[0:2])
+
+                # if the fit plot aleady exists, clear it, because we don't want
+                #multiple plots piling up on each other
+                if hasattr(self,self.fitplot_line_name+"{:d}".format(current_curve_number)):
+                    getattr(self,self.fitplot_line_name+"{:d}".format(current_curve_number)).clear()
+
+                # finally make a fit plot line and plot the data to it
+                setattr(self,self.fitplot_line_name+"{:d}".format(current_curve_number),
+                    self.graphWidget.plot(symbol=None,
+                        pen=getattr(self,"pen{:d}".format(current_curve_number)),
+                        symbolBrush = pg.mkBrush(None)))
+                getattr(self,self.fitplot_line_name+"{:d}".format(current_curve_number)).setData(aXvalsDense,aYvalsDense)
+
+                #============= Ok by here we should be done with the actual plotting of the fit
+
+                # Now let's write the results of the fitting to an output
+                #text box below the main plotting window
+                self.TextBoxForOutput.setCurrentFont(QtGui.QFont("Helvetica",
+                        pointSize=10,
+                        weight = QtGui.QFont.Bold))
+                self.TextBoxForOutput.append("Curve {} fit results:".format(self.legend_label_dict["curve{:d}".format(current_curve_number)]))
+                for (key,val) in getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).result_paramdict.items():
+                    self.TextBoxForOutput.setCurrentFont(QtGui.QFont("Helvetica",
+                        pointSize=10,
+                        weight=QtGui.QFont.Normal))
+                    self.TextBoxForOutput.append(key+" : "+"{:.06f}".format(val))
+                self.TextBoxForOutput.append("Objective function result" + " : " + \
+                    "{:.06f}".format(getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).result_objectivefunction))
+                return True
+            else:
+                self.TextBoxForOutput.setCurrentFont(QtGui.QFont("Helvetica",
+                                                                 pointSize=10,
+                                                                 weight=QtGui.QFont.Bold))
+                self.TextBoxForOutput.append(
+                    "Curve {} : Fit failed".format(self.legend_label_dict["curve{:d}".format(current_curve_number)]))
+                return True
+            #this else condition will be used if the fit result is not a success
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_makefit_button"))
+            print("do_fit function failed in the fitter. Check other error messages")
+            return False
 
     # TODO Somehow prefit seems to not accept it when the initial parameter is set to 0. Check that out
     def process_Prefit_button(self):
@@ -506,14 +529,14 @@ class MainWindow(QtGui.QMainWindow):
                     delattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number))
                     setattr(self,
                         self.fitmodel_instance_name+"{:d}".format(curve_number),
-                        fm.Fitmodel(fitfunction_name,curve_number,
+                        Fitmodel(fitfunction_name,curve_number,
                             *result_check_settings))
                 else:
                     pass
             else:
                 setattr(self,
                         self.fitmodel_instance_name+"{:d}".format(curve_number),
-                    fm.Fitmodel(fitfunction_name,
+                    Fitmodel(fitfunction_name,
                         curve_number,*result_check_settings))
         else:
             print("Message from function process_Prefit_button: checkAndReturnDataPrefit function failed, check out its error messages and input data")
@@ -571,6 +594,8 @@ class MainWindow(QtGui.QMainWindow):
         Just a helper function in order to create the plot line if it doesn't already
         exist
         This is for adding new curves to the plot. Do not call on existing curves!
+
+        Important! This adds the legend to the plot as well
         """
         # First check if the legend label already exists, and if not, add an automatic label
         # to just give the curve number
@@ -591,7 +616,10 @@ class MainWindow(QtGui.QMainWindow):
                  self.graphWidget.plot(symbol="o", name=self.legend_label_dict["curve{:d}".format(curvenumber)],
                                        pen=getattr(self, self.pen_name + "{:d}".format(curvenumber)),
                                        symbolBrush=pg.mkBrush(self.colorpalette[curvenumber])))
+        # Now finally add the curve to the list of available curves
+        self.PlotNumberChoice.addItem("{:d}".format(curvenumber))
         return True
+        # TODO: Make sure to delete PlotNumberChoice entry when the clear command is issued
 
 
     # This function is for real-time plotting of data points, 
@@ -625,6 +653,12 @@ class MainWindow(QtGui.QMainWindow):
                 print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
                 print("You put a curve number that is not an integer. This is not allowed")
                 return False
+            # Now check that there are not more curves trying to be registered than the max allowed number
+            if plot_single_datapoint_arg["curveNumber"] >= self.MAX_NUM_CURVES:
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
+                print("You put a curve number which is greater than MAX_NUM_CURVES, which is now set to {:d}. This is not allowed".format(self.MAX_NUM_CURVES))
+                return False
+
             # Now check that the xval is either an intereg or a float
             if not isinstance(plot_single_datapoint_arg["xval"],(int,float)):
                 print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "plot_single_datapoint"))
@@ -773,50 +807,181 @@ class MainWindow(QtGui.QMainWindow):
             self.legend_label_list = []
             return False
 
-    def set_fit_function(self,fitfunctionname):
-        if isinstance(fitfunctionname,str):
-            fitfunction_index = self.FitFunctionChoice.findText(fitfunctionname)
-            if fitfunction_index > -1:
-                self.FitFunctionChoice.setCurrentIndex(fitfunction_index)
+    def set_fit_function(self,fit_function_name: str) -> bool:
+        if isinstance(fit_function_name,str):
+            if fit_function_name in self.DEFINED_FITFUNCTIONS:
+                self.FitFunctionChoice.setCurrentText(fit_function_name)
+                #current_curvenumber = int(self.PlotNumberChoice.currentText())
+                #current_fitmodel = getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber))
+                #current_fitmodel.fitfunction_name = fit_function_name
+                return True
             else:
-                print("Message from Class {:s} function set_fit_function: fit function name {} does not exist. Check also if the curves are registered".format(self.__class__.__name__,fitfunctionname))
-    def set_curve_number(self,curvenumber_str):
-        # First, we check if the curve number is sensible
-        try:
-            curve_num_int = int(curvenumber_str)
-            if curve_num_int < 0:
-                print("Message from Class {:s} function set_curve_number: You are trying to set a negative curve number. This is impossible".format(self.__class__.__name__))
-                return None
-        except:
-            print("Message from Class {:s} function set_curve_number: You are trying to set a non-integer curve number. This is impossible".format(self.__class__.__name__))
-            return None
-        # We have to register the available curves, so that 
-        #we can choose
-        self.register_available_curves()
-        curvenumber_index = self.PlotNumberChoice.findText(curvenumber_str)
-        if curvenumber_index > -1:
-            self.PlotNumberChoice.setCurrentIndex(curvenumber_index)
-        else:
-            print("Message from Class {:s} function set_curve_number: curve number {} does not exist. Check also if the curves are registered".format(self.__class__.__name__,curvenumber_str))
-    
-    def set_starting_parameters(self,parameterdictionary):
-        # we start with doing process_Prefit_button, because it's exactly the same 
-        #function as there, we are supposed to format the data into the correct 
-        #shape, and initialize the prefit dictinoary in order to be 
-        #able to fill it with the suggested starting values
-        self.process_Prefit_button()
-        current_curve_number_string = self.PlotNumberChoice.currentText()
-        for key in parameterdictionary:
-            if key in getattr(self,self.fitmodel_instance_name+current_curve_number_string).fit_function_paramdict_prefit:
-                getattr(self,self.fitmodel_instance_name+current_curve_number_string).fit_function_paramdict_prefit[key] = parameterdictionary[key]
-            else:
-                print("Message from Class {:s} function set_starting_parameters : you input key {} into the parameter dictionary, and the selected fit model is {}. Such a parameter for the selected fit model does not exist. Not setting this parameter".format(self.__class__.__name__,key,self.FitFunctionChoice.currentText()))
-    def set_crop_tuple(self,croptuple): # this sets the crop tuple for cropping the x-axis before data fitting
-        current_curve_number_string = self.PlotNumberChoice.currentText()
-        setattr(self,self.fit_cropbounds_name+current_curve_number_string,croptuple)
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_fit_function"))
+                print("Fit function name {} is not defined \n".format(fit_function_name))
+                return False
+        else: #else the fit function name is not a string, this doesn't work
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_fit_function"))
+            print("You set a fit function name which is not a string. This is not allowed \n")
+            return False
 
-    def do_fit(self,emptystring):
-       self.process_MakeFit_button() 
+    def set_curve_number(self,curvenumber_arg: int) -> bool:
+        """
+        The goal of this function is to check if the corresponding
+        curve number exists, and if it does, then it will 
+        make an instance of Fitmodel class and fill in x values, 
+        y values, and possibly the error bar values in that instance
+
+        If something is wrong, it will not do this, and then eventually 
+        We will get an error message because the fitter will have no data
+        so it will not be able to fit
+        """
+
+        # First, we check if the curve number is sensible
+        if not isinstance(curvenumber_arg,int):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_curve_number"))
+            print("The curve number parameter must be an integer. What you supplied is this: {}. Not setting curve number".format(curvenumber_arg))
+            return False
+        if curvenumber_arg < 0:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_curve_number"))
+            print("You supplied a negative curve number: {}. This is not allowed, not setting any curve number".format(curvenumber_arg))
+            return False
+        if not hasattr(self,self.xaxis_name+"{:d}".format(curvenumber_arg)):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_curve_number"))
+            print("You are asking for curve number {} which does not exist in the data. Fitting is impossible".format(
+                curvenumber_arg))
+            return False
+
+        self.PlotNumberChoice.setCurrentText("{:d}".format(curvenumber_arg))
+        setattr(self,
+                self.fitmodel_instance_name + "{:d}".format(curvenumber_arg),
+                Fitmodel(fitfunction_name=self.FitFunctionChoice.currentText(),
+                         x_axis_vals=getattr(self, self.xaxis_name + "{:d}".format(curvenumber_arg)),
+                         measured_data=getattr(self, self.yaxis_name + "{:d}".format(curvenumber_arg)),
+                         errorbars_data=getattr(self, self.err_name + "{:d}".format(curvenumber_arg), None)
+                         )
+                )
+        return True
+
+    def set_starting_parameters(self,supplied_startparams_dict: dict) -> bool:
+        # Check if the supplied starting parameters is a dictionary
+        if not isinstance(supplied_startparams_dict, dict):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters"))
+            print("You put something other than a dictionary for the starting parameters. This is not allowed \n")
+            return False
+        # Check if the values in this dictionary are all numbers (int or float) 
+        if not all([isinstance(val,(int,float)) for val in supplied_startparams_dict.values()]):
+            print("Message from Class {} function {}".format(self.__class__.__name__, "set_starting_parameters"))
+            print("You supplied something other than numbers for startparameters values. This is not allowed \n")
+            return False
+
+        # this current_curvenumber should have been registered before with the curve number parameter
+        current_curvenumber = int(self.PlotNumberChoice.currentText())
+        for (key,value) in supplied_startparams_dict.items():
+            if key in getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber)).start_paramdict:
+                getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber)).start_paramdict[key] = value
+            else:
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters"))
+                print("Warning: your supplied key {} is not among the model parameter keys \n".format(key))
+        return True
+   
+    def set_starting_parameters_limits(self, supplied_startparams_lim_dict: dict) -> bool:
+        # check if all startparam limits are dictionaries
+        if not isinstance(supplied_startparams_lim_dict, dict):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters_limits"))
+            print("You put something other than a dictionary for the starting parameters limits. This is not allowed")
+            return False
+        # check if all values in these dictionaries are lists
+        if not all([isinstance(val,list) for val in supplied_startparams_lim_dict.values()]):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters_limits"))
+            print("You supplied something other than lists for start param limit values. This is not allowed")
+            return False
+        # check if 
+        if not all([(len(val) == 2) for val in supplied_startparams_lim_dict.values()]):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters_limits"))
+            print("Some of your supplied lists for start param limits are not of length 2.")
+            return False
+        
+        # this current_curvenumber should have been registered before with the curve number parameter
+        current_curvenumber = int(self.PlotNumberChoice.currentText())
+        current_startparamdict = getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber)).start_paramdict
+        for (key,value) in supplied_startparams_lim_dict:
+            # Check if the key is in param dict for model and if
+            # the values in the list are numbers
+            if (key in current_startparamdict) and all([isinstance(q,(int,float)) for q in value]):
+                if (value[0] <= current_startparamdict[key]) and (value[1] >= current_startparamdict[key]):
+                    getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber)).start_bounds_paramdict = value
+                else:
+                    print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters_limits"))
+                    print("The lower bound must be below the initial value and the upper bounds must be above the initial value. It's not the case now. Not setting this supplied key-value pair for bounds: {}".format((key,value)))
+            else:
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters_limits"))
+                print("Your supplied key is not among the model parameter keys or your put something other than numbers as the values for limits. Not setting this key-value pair for bounds: {}".format((key,value)))
+        return True
+
+
+    def set_crop_limits(self,croplimits_arg: list) -> bool: # this sets the crop tuple for cropping the x-axis before data fitting
+        # make sure that croplimits is a list
+        if not isinstance(croplimits_arg, list):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_crop_limits"))
+            print("You put something other than a list as crop limits. This is not allowed, not setting any crop limits")
+            return False
+        # Check if the list contains two elements and if they are numbers
+        if not (len(croplimits_arg == 2) and all([isinstance(q,(int,float)) for q in croplimits_arg])):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_crop_limits"))
+            print("Either the length of your crop limits argument is not 2 or the values you put in are not numbers. This is not allowed, not setting any crop limits. Here is what you put in: {}".format(croplimits_arg))
+            return False
+        # Make sure that the first crop limit is strictly smaller than 
+        # the second one
+        if not croplimits_arg[0] < croplimits_arg[1]:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_crop_limits"))
+            print("The first crop limit must always be smaller than the second crop limit. It's not the case now, not setting any crop limits. Here is what you put in: {}".format(croplimits_arg))
+            return False
+
+        # this curve number should be registered by now
+        current_curve_number = int(self.PlotNumberChoice.currentText())
+        getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).crop_bounds_list = croplimits_arg
+        return True
+    
+    def set_fit_method(self,fitmethod_arg: str) -> bool:
+        """
+        NOTE: Important
+        This function does not check whether the supplied fit (minimization)
+        method actually exists in scipy.optimize! It's up to the user 
+        to make sure to not supply nonsense fit methods, or to check 
+        this further downstream in fitting
+        """
+        # we check that the fit method is actually a string
+        if not isinstance(fitmethod_arg, str):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_fit_method"))
+            print("You put something other than a string for fit method. This is not allowed. If other settings are OK, the fitter used will be least_squares")
+            return False
+        
+        current_curve_number = int(self.PlotNumberChoice.currentText())
+        getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).minimization_method_str = fitmethod_arg
+        return True
+
+    def set_fitter_options(self,fitteroptions_arg: dict) -> bool: 
+        """
+        NOTE: Important
+        This function does not check if the options you supplied make
+        sense for the fitter that you are choosing! 
+        You have to either make sure to supply the correct options 
+        or maybe check it downstream in the fitter itself
+        """
+        # we check that the fit method is actually a dictionary
+        if not isinstance(fitteroptions_arg, dict):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_fitter_options"))
+            print("You put something other than a dictionary for fitter options. This is not allowed. Not setting any fitter options")
+            return False
+        
+        current_curve_number = int(self.PlotNumberChoice.currentText())
+        getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).fitter_options_dict = fitteroptions_arg
+        return True
+
+    # This function does the fitting
+    def set_perform_fitting(self,emptystring: str) -> bool:
+       self.process_makefit_button() 
+       return True
 
     def buttonHandler(self,textmessage="blahblahblah"): # we can get the arguments in using functools.partial, or better take no arguments
         print(textmessage)

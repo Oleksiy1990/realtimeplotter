@@ -21,7 +21,7 @@ mymessagedict = {"jsonrpc":"2.0",
                  "method":mymethod,
                  "params":myparams,
                  "id":1}
-print(mymessagedict)
+#print(mymessagedict)
 
 mymethod3 = "addData"
 myparams3 = {"dataPoint":{"curveNumber":5,"xval":0.2,
@@ -30,18 +30,19 @@ mymessagedict3 = {"jsonrpc":"2.0",
                  "method":mymethod3,
                  "params":myparams3,
                  "id":1}
-print(mymessagedict3)
+#print(mymessagedict3)
 
 mymethod2 = "setConfig"
-myparams2 = {"axisLabels":["my_x","my_y"],"plotTitle":"my_plot_title"}
+myparams2 = {"axisLabels":["my_x","my_y"],"plotTitle":"my_plot_title",
+             "plotLegend":{"curve1":"myfavcurve1"}}
 mymessagedict2 = {"jsonrpc":"2.0", 
                  "method":mymethod2,
                  "params":myparams2,
                  "id":1}
-print(mymessagedict2)
+#print(mymessagedict2)
 
-datapts = [{"curveNumber":5,"xval":x,
-                            "yval":np.sin(x),"yerr":0.05} for x in np.linspace(0,20,100)]
+datapts = [{"curveNumber":1,"xval":x,
+                            "yval":np.sin(3*x),"yerr":0.05} for x in np.linspace(0,20,100)]
 
 mymethod4 = "addData"
 myparams4 = {"pointList":datapts}
@@ -50,8 +51,22 @@ mymessagedict4 = {"jsonrpc":"2.0",
                  "params":myparams4,
                  "id":1}
 
+mymethod5 = "doFit"
+myparams5 = {"fitFunction":"sinewave",
+             "curveNumber": 1,
+             "startingParameters":{"frequency":3/(2*np.pi),
+                                   "amplitude":1,
+                                   "phase":0,
+                                   "verticaloffset":0.},
+             "fitMethod":"basinhopping",
+             #"fitterOptions":{"method":"trust-constr"},
+             "performFitting":""}
+mymessagedict5 = {"jsonrpc":"2.0", 
+                 "method":mymethod5,
+                 "params":myparams5,
+                 "id":1}
 
-r1 = json.dumps(mymessagedict4)
+r1 = json.dumps(mymessagedict5)
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 
