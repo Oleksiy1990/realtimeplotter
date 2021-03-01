@@ -165,10 +165,10 @@ class GeneralFitter1D:
 
         # since we have done the fit here, regardless of successful or not,
         # we should set this one to True
-        self.fitmodel_input.fit_isdone = True
+        self.fitmodel_input.is_fit_done = True
 
         if optimization_output.success is True:
-            self.fitmodel_input.fit_issuccessful = True
+            self.fitmodel_input.is_fit_successful = True
             # we first want to fill the dictionary in the model with fit results
             fitmodel_dictkeylist = list(self.fitmodel_input.start_paramdict.keys())
             for (idx, key) in enumerate(fitmodel_dictkeylist):
@@ -181,7 +181,7 @@ class GeneralFitter1D:
         else:
             print("Message from Class {:s} function doFit: apparently the fit did not converge.".format(
                 self.__class__.__name__))
-            self.fitmodel_input.fit_issuccessful = False
+            self.fitmodel_input.is_fit_successful = False
         return True
 
 class PrefitterDialog(QtWidgets.QWidget):

@@ -265,7 +265,7 @@ class JSONread():
         for keystring in JSONread.getFitResult_message_keys:  # check out the list of all possible keys to config
             if keystring in params_dict.keys():
                 data = params_dict[keystring]
-                output.append(("get_fit_result", data))
+                output.append(("get_fit_result", data)) # so it will output the curve number that was fed
                 params_dict.pop(keystring)
         if not output:  # this will evaluate to False if output is empty
             print("Message from Module {:s}, Class {:s} function {:s} :".format(__name__,
@@ -278,33 +278,11 @@ class JSONread():
                                                                                 self.__class__.__name__,
                                                                                 "__parse_getFitResult_message"))
             print(
-                "There were keys sent via JSON in params dictionary that are not understood. Here's that was not understood: {}".format(
+                """There were keys sent via JSON in params dictionary that are not understood. 
+                Here's that was not understood: {}""".format(
                     list(params_dict.keys())))
         return output
 
-
-def message_interpreter_twoway(message_in = ""):
-    """
-    Note: this parses the incoming message into the two-way communication
-    """
-    if len(message_in) == 0:
-        print("Function message_interpreter_twoway: apparently no message received, length of message string is 0. Not doing anything")
-        return (False,"nomessage",)
-    
-    message = message_in.strip() # get rid of any possible whitespaces before and after
-    message_in_split = message.split(";") #
-    start_command = message_in_split[0].strip()
-    if start_command == "getfitparams":
-        curve_str = message_in_split[1].strip()
-        try:
-            curve = int(curve_str)
-        except:
-            print("Message from message_interpreter_twoway: you put in this curve number: {}. It is not an integer. Ignoring it".format(curve_str))
-            return (False,"curvenotaninteger",)
-        return (True,"",curve)
-
-    else:
-        return (False,"wrongcommand",)
 
 """
 What follows is a list of functions, all written according to similar design strategy and more or less similar implementation

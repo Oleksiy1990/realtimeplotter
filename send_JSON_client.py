@@ -14,6 +14,33 @@ HOST = "127.0.0.1"
 PORT = 5757
 BUFFER_SIZE = 2048
 
+def receive_message(socket_in):
+    NUM_BYTES_PREAMBLE = 8
+    
+    preamble_bytes = socket_in.recv(NUM_BYTES_PREAMBLE)
+    preamble_str = preamble_bytes.decode(encoding = "utf-8")
+    
+    message_length = int(preamble_str)
+    if message_length == 0: # this signifies that communication is finished in this session
+        return ""
+    
+    full_message_bytes = "".encode("utf-8")
+
+    # this loop receives the message in chunks, of length at most self.buffersize
+    while True:
+        # if message length is less than buffersize, read it in one chunk and leave the loop
+        if (message_length <= BUFFER_SIZE):
+            data_bytes = socket_in.recv(message_length)
+            full_message_bytes += data_bytes
+            break
+        # if message length is greater than buffersize, receive it in chunks
+        else:
+            data_bytes = socket_in.recv(BUFFER_SIZE)
+            full_message_bytes += data_bytes
+            message_length -= BUFFER_SIZE
+    return full_message_bytes.decode("utf-8")
+
+
 
 mymethod = "doClear"
 myparams = {"clearData": "all"}
@@ -58,7 +85,7 @@ myparams5 = {"fitFunction":"sinewave",
                                    "amplitude":1,
                                    "phase":0,
                                    "verticaloffset":0.},
-             "fitMethod":"basinhopping",
+             "fitMethod":"differential_evolution",
              #"fitterOptions":{"method":"trust-constr"},
              "performFitting":""}
 mymessagedict5 = {"jsonrpc":"2.0", 
@@ -66,7 +93,13 @@ mymessagedict5 = {"jsonrpc":"2.0",
                  "params":myparams5,
                  "id":1}
 
-r1 = json.dumps(mymessagedict5)
+mymessagedict6 = {"jsonrpc":"2.0", 
+                 "method":"getFitResult",
+                 "params":{"curveNumber":1},
+                 "id":1}
+
+
+r1 = json.dumps(mymessagedict6)
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 
@@ -78,10 +111,15 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((HOST, PORT))
 
 sendres = s.sendall(full_message)
+if json.loads(r1)["method"] == "getFitResult":
+    result_back = receive_message(s)
+    print(result_back)
+
 endmessage_str = "{:08d}".format(0)
 endmessage_bytes = endmessage_str.encode("utf-8",errors="ignore")
 s.sendall(endmessage_bytes)
-s.close()
 
+
+s.close()
 
 

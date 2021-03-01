@@ -23,6 +23,7 @@ from fitmodelclass import Fitmodel
 from mathfunctions import fitmodels
 import helperfunctions
 from typing import Optional, Tuple, List, Any, Union
+import socket
 
 pg.setConfigOptions(crashWarning=True)
 
@@ -44,10 +45,11 @@ class WorkerSignals(QtCore.QObject):
         `object` data returned from processing, anything
 
     '''
-    finished = QtCore.pyqtSignal()
+    #finished = QtCore.pyqtSignal()
     error = QtCore.pyqtSignal(tuple)
     request_to_main = QtCore.pyqtSignal(object)
-    newdata = QtCore.pyqtSignal(str)
+    set_client_communication_socket = QtCore.pyqtSignal(object) # maybe the argument should be socket.socket, not sure now
+    newdata = QtCore.pyqtSignal(str) # This is what apparently the spawned socket emits after parsing the data
 
 class TCP_IP_Worker(QtCore.QRunnable):
     """
@@ -56,6 +58,17 @@ class TCP_IP_Worker(QtCore.QRunnable):
     Note that the only thing that this really does is to get a listener function 
     as an argument, it also makes a WorkerSignals() instance, and then it defines a run()
     method, makes it a slot, and when it's called, it passes the WorkerSignals instance to the listener function
+
+    Worker thread
+
+        Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
+
+        :param callback: The function callback to run on this worker thread. Supplied args and
+                         kwargs will be passed through to the runner.
+        :type callback: function
+        :param args: Arguments to pass to the callback function
+        :param kwargs: Keywords to pass to the callback function
+
     """
     def __init__(self, listener_fn):
         # listener_fn is the function which will be called in the thread
@@ -74,59 +87,17 @@ class TCP_IP_Worker(QtCore.QRunnable):
             exctype, value = sys.exc_info()[:2]
             self.signals.error.emit((exctype, value, traceback.format_exc()))
 
-# This class is an example from a tutorial, it is NOT used!
-class Worker(QtCore.QRunnable):
-    '''
-        Worker thread
-
-        Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
-
-        :param callback: The function callback to run on this worker thread. Supplied args and 
-                         kwargs will be passed through to the runner.
-        :type callback: function
-        :param args: Arguments to pass to the callback function
-        :param kwargs: Keywords to pass to the callback function
-
-    '''
-
-    def __init__(self, fn, *args, **kwargs):
-        super().__init__()
-        # Store constructor arguments (re-used for processing)
-        self.fn = fn
-        self.args = args
-        self.kwargs = kwargs
-        self.signals = WorkerSignals()
-
-    @QtCore.pyqtSlot()
-    def run(self):
-        '''
-        Initialise the runner function with passed args, kwargs.
-        '''
-
-        # Retrieve args/kwargs here; and fire processing using them
-        try:
-            result = self.fn(
-                *self.args, **self.kwargs
-            )
-        except:
-            traceback.print_exc()
-            exctype, value = sys.exc_info()[:2]
-            self.signals.error.emit((exctype, value, traceback.format_exc()))
-        else:
-            self.signals.result.emit(result)  # Return the result of the processing
-        finally:
-            self.signals.finished.emit()  # Done
-
 class MainWindow(QtGui.QMainWindow):
 
+    # These are class variables, or effetively constants for our purposes
     DEFINED_FITFUNCTIONS = ["sinewave","damped_sinewave","gaussian"]
     MAX_NUM_CURVES = 50 # This is a large upper limit on the max number of curves that
                         # can be plotted at the same time
     NUMPOINTS_CURVE_DENSE = 350
 
-    def __init__(self, aTCPIPserver,aTCPIPServerTwoway,is_testing=False):
-        if not is_testing:
-            super().__init__()
+    def __init__(self, aTCPIPserver):
+
+        super().__init__()
 
         maxthreads_threadpool = 5
         
@@ -187,15 +158,12 @@ class MainWindow(QtGui.QMainWindow):
         self.legend_label_list = [] # processed in self._create_plotline
         self.legend_label_dict = {}
 
-        self.myJSONread = JSONread()
+        #self.myJSONread = JSONread()
 
         # This is the number of datasets in the current state of the class instance
         self.num_datasets = 0
         self.arePlotsCleared = True
         self.prefitDialogWindow = None
-
-        if is_testing:
-            return None
 
         #================== Below is the stuff for building the GUI itslef
 
@@ -287,13 +255,23 @@ class MainWindow(QtGui.QMainWindow):
         # Note that this listener_function_Qt is the one that 
         #has the while True loop to keep listening
         myTCP_IP_Worker = TCP_IP_Worker(aTCPIPserver.listener_function_Qt)
-        myTCP_IP_Worker_Twoway = TCP_IP_Worker(aTCPIPServerTwoway.listener_function_Twoway)
+        #myTCP_IP_Worker_Twoway = TCP_IP_Worker(aTCPIPServerTwoway.listener_function_Twoway)
         myTCP_IP_Worker.signals.newdata.connect(self.interpret_message)
-        myTCP_IP_Worker_Twoway.signals.request_to_main.connect(self.process_fitresults_call)
+        myTCP_IP_Worker.signals.set_client_communication_socket.connect(self._register_client_communication_socket)
+        #myTCP_IP_Worker_Twoway.signals.request_to_main.connect(self.process_fitresults_call)
         self.threadpool.start(myTCP_IP_Worker)
-        self.threadpool.start(myTCP_IP_Worker_Twoway)
+        #self.threadpool.start(myTCP_IP_Worker_Twoway)
+        self.client_communication_socket = None # This will be the socket to use for sending data to the client
 
     ###### End of __init__()
+    def _register_client_communication_socket(self, socket_arg: socket.socket) -> bool:
+        if not isinstance(socket_arg,(socket.socket,type(None))):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "_register_client_communication_socket"))
+            print(
+                "The argument you put into this function is not type socket.socket or None. Not doing anything")
+            return False
+        self.client_communication_socket = socket_arg
+        return True
 
     def interpret_message(self,message: str) -> None:
         """
@@ -301,11 +279,14 @@ class MainWindow(QtGui.QMainWindow):
         The result is a list of tuples. Each tuple has the form 
         ("function name",argument)
         """
-        if (message == "Done") or (message == ""):
-            return None # This is because somehow socketserver.py sends these things.
-            # TODO: improve the socket server class
 
-        interpretation_result = self.myJSONread.parse_JSON_message(message)
+        # This should not be needed anymore, because we do not emit these messages anymore
+        #if (message == "Done") or (message == ""):
+        #    return None # This is because somehow socketserver.py sends these things.
+        # TODO: improve the socket server class
+
+        myJSONread = JSONread()
+        interpretation_result = myJSONread.parse_JSON_message(message)
         # the line above produces a list of tuples form the JSON-RPC message
 
         # IMPORTANT! Be careful with this because this is where the functions from the received
@@ -319,51 +300,6 @@ class MainWindow(QtGui.QMainWindow):
             type(function_to_call)
             function_to_call(res[1])
         self.message_processed = True
-    
-    def process_fitresults_call(self,arg_tuple):
-        """
-        This function defines what is sent back to whoever called for the fit results
-        The error messages should be defined here
-        Possibly for later we may want to implement a different class for this, but for now it's here
-
-        It also sends the message based on the sender_function, which is a pre-made function that already comes
-        from socketserver.py
-
-        Don't forget to release the lock in the end
-        """
-        (lock,sender_function,curve_number) = arg_tuple
-
-        doesCurveExist = hasattr(self,self.yaxis_name+"{:d}".format(curve_number))
-        if doesCurveExist is False:
-            print("Message from Class {:s} function process_fitresults_call: You requested fit results for curve {}, but this curve does not exist.".format(self.__class__.__name__,curve_number))
-            sender_function(message_string="nocurve{:02d}".format(curve_number))
-            lock.release()
-            return None
-        doesFitModelExist = hasattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number))
-        if doesFitModelExist is False:
-            sender_function(message_string="nofitmodel{:02d}".format(curve_number))
-            lock.release()
-            return None
-        doesFitExist = getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_isdone
-        if doesFitExist is False:
-            sender_function(message_string="nofitdone{:02d}".format(curve_number))
-            lock.release()
-            return None
-        isFitSuccessful = getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_issuccessful
-        if isFitSuccessful is False:
-            sender_function(message_string="nofitsuccess{:02d}".format(curve_number))
-            lock.release()
-            return None
-
-        # Here we assemble the message to send and then send it
-        # we transmit the resulting paramter values as well as the objective function for a particular fit
-        message_fitresults = ""
-        for (key,val) in getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_function_paramdict.items():
-            message_fitresults += "{:s} : {:.10f}, ".format(key,val)
-        message_fitresults += "objectivefunction : {:.10f},".format(getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fit_result_objectivefunction)
-        sender_function(message_string=message_fitresults)
-        lock.release()
-        return None
 
 
     def nofunction(self,verbatim_message: str) -> None:
@@ -419,6 +355,7 @@ class MainWindow(QtGui.QMainWindow):
     def process_makefit_button(self) -> bool:
 
         # TODO: Make sure that when a fit is plotted, it doesn't repeat writing the legend name, because it does now
+        # TODO: Make sure that it doesn't delete the curve that is not being fitted
         # If we are going to do the fit, we should close the prefit dialog window no matter what
         if self.prefitDialogWindow:
             self.prefitDialogWindow.close()
@@ -438,7 +375,7 @@ class MainWindow(QtGui.QMainWindow):
             result_dofit = currentFitter.do_fit()
         if result_dofit is True:
             # 4) If the fit result is good, according to the fitter message, we want to plot it
-            if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).fit_issuccessful is True:
+            if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).is_fit_successful is True:
                 aXvalsDense = np.linspace(getattr(self,
                         self.fitmodel_instance_name+"{:d}".format(current_curve_number)).xvals[0],
                         getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).xvals[-1],
@@ -983,6 +920,66 @@ class MainWindow(QtGui.QMainWindow):
        self.process_makefit_button() 
        return True
 
+    def get_fit_result(self, arg_int: int) -> bool:
+        # TODELETE
+        print("From GUI.py get_fit_result: type(self.client_communication_socket) : {}".format(type(self.client_communication_socket)))
+
+        if not isinstance(arg_int, int):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "get_fit_result"))
+            print(
+                "Your curve number is not an integer. This is not allowed. Not returning any results \n")
+            if self.client_communication_socket is not None:
+                error_string_back = helperfunctions.create_JSONRPC_errormessage(-32602,"Curve number not an integer")
+                helperfunctions.send_TCPIP_message(self.client_communication_socket,error_string_back,True)
+            else:
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "get_fit_result"))
+                print(
+                    "Client communication socket unavailable. Not sending any results to the client \n")
+            return False
+
+        if not hasattr(self,self.fitmodel_instance_name+"{:d}".format(arg_int)):
+            if self.client_communication_socket is not None:
+                error_string_back = helperfunctions.create_JSONRPC_errormessage(-32602,"Curve does not have a fitmodel")
+                helperfunctions.send_TCPIP_message(self.client_communication_socket,error_string_back,True)
+            else:
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "get_fit_result"))
+                print(
+                    "Client communication socket unavailable. Not sending any results to the client \n")
+            return False
+
+        if getattr(self,self.fitmodel_instance_name+"{:d}".format(arg_int)).is_fit_done is False:
+            if self.client_communication_socket is not None:
+                error_string_back = helperfunctions.create_JSONRPC_errormessage(-32000,"Fit not done")
+                helperfunctions.send_TCPIP_message(self.client_communication_socket,error_string_back,True)
+            else:
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "get_fit_result"))
+                print(
+                    "Client communication socket unavailable. Not sending any results to the client \n")
+            return False
+
+        if getattr(self,self.fitmodel_instance_name+"{:d}".format(arg_int)).is_fit_successful is False:
+            if self.client_communication_socket is not None:
+                error_string_back = helperfunctions.create_JSONRPC_errormessage(-32000,"Fit not successful")
+                helperfunctions.send_TCPIP_message(self.client_communication_socket,error_string_back,True)
+            else:
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "get_fit_result"))
+                print(
+                    "Client communication socket unavailable. Not sending any results to the client \n")
+            return False
+
+        results_dict = getattr(self,self.fitmodel_instance_name+"{:d}".format(arg_int)).result_paramdict
+        results_dict["costfunction"] = getattr(self,self.fitmodel_instance_name+"{:d}".format(arg_int)).result_objectivefunction
+        result_string_back = helperfunctions.create_JSONRPC_responsemessage(results_dict)
+        if self.client_communication_socket is not None:
+            helperfunctions.send_TCPIP_message(self.client_communication_socket, result_string_back, True)
+            return True
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "get_fit_result"))
+            print(
+                "Client communication socket unavailable. Not sending any results to the client \n")
+            return False
+
+
     def buttonHandler(self,textmessage="blahblahblah"): # we can get the arguments in using functools.partial, or better take no arguments
         print(textmessage)
 
@@ -992,8 +989,8 @@ class MainWindow(QtGui.QMainWindow):
 
 def runPlotter(sysargs):
 
-    HOST = "127.0.0.1"
-    #HOST = "134.93.88.156"
+    #HOST = "127.0.0.1"
+    HOST = "134.93.212.68"
     
     # this is the server for one-way communication, no responses
     PORT = 5757
@@ -1002,13 +999,14 @@ def runPlotter(sysargs):
     
     # We want to call this server for two-way communication to send back
     #fit results
-    PORT_TWOWAY = PORT + 1
-    myServerTwoway = TCPIPserver(HOST,PORT_TWOWAY)
-    myServerTwoway.reportedLengthMessage = True
+    #PORT_TWOWAY = PORT + 1
+    #myServerTwoway = TCPIPserver(HOST,PORT_TWOWAY)
+    #myServerTwoway.reportedLengthMessage = True
 
 
     app = QtWidgets.QApplication(sysargs)
-    w = MainWindow(myServer,myServerTwoway)
+    #w = MainWindow(myServer,myServerTwoway)
+    w = MainWindow(myServer)
     #w.show()
     app.exec_()
     if w.prefitDialogWindow:
