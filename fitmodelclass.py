@@ -111,6 +111,7 @@ class Fitmodel:
         # we artificially set bounds to infinity,
         # just because we want to keep it uniform
         # this produces self.xvals, self.yvals, self.errorbars
+        self._remove_zero_errorbars()
 
         # check again if we didn't crop out all the data
         if len(self.xvals) < 2 or len(self.yvals) < 2:
@@ -129,15 +130,20 @@ class Fitmodel:
         self.yvals_orig = self.yvals_orig[xaxis_indices]
         self.errorbars_orig = self.errorbars_orig[xaxis_indices]
 
-    def _do_cropping(self):
+    def _do_cropping(self) -> None:
         crop_x_mask = (self.xvals_orig > self.crop_bounds_list[0]) & (self.xvals_orig < self.crop_bounds_list[1])
         # make copies in order to always keep the old one available if necessary
         self.xvals = self.xvals_orig[crop_x_mask].copy()
         self.yvals = self.yvals_orig[crop_x_mask].copy()
         self.errorbars = self.errorbars_orig[crop_x_mask].copy()
 
-    def _check_startparams(self):
-        pass
+    def _remove_zero_errorbars(self) -> None:
+        # NOTE!!! This replaces small errorbars by mean of all errorbars
+        mean_errorbars = np.mean(self.errorbars)
+        stddev_errorbars = np.std(self.errorbars)
+
+        self.errorbars[(self.errorbars < (mean_errorbars - stddev_errorbars)) | (self.errorbars < 1e-10)] = mean_errorbars
+
 
     def do_prefit(self) -> bool: #TODO! NOT done yet
 

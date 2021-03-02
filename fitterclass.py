@@ -89,6 +89,11 @@ class GeneralFitter1D:
             print("Function setup_fit returned False. Check out what's going on there. Fitting impossible")
             return False
 
+        # TODELETE:
+        print("""From fitterclass do_fit: 
+            Here are the start params {}
+            and here are the start param bounds {}
+            """.format(self.fitmodel_input.start_paramdict,self.fitmodel_input.start_bounds_paramdict))
         # First we generate the lists of bounds to send to the optimizers
         lowerbounds_list = [self.fitmodel_input.start_bounds_paramdict[key][0] for key \
                             in self.fitmodel_input.start_bounds_paramdict]

@@ -841,12 +841,12 @@ class MainWindow(QtGui.QMainWindow):
         # this current_curvenumber should have been registered before with the curve number parameter
         current_curvenumber = int(self.PlotNumberChoice.currentText())
         current_startparamdict = getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber)).start_paramdict
-        for (key,value) in supplied_startparams_lim_dict:
+        for (key,value) in supplied_startparams_lim_dict.items():
             # Check if the key is in param dict for model and if
             # the values in the list are numbers
             if (key in current_startparamdict) and all([isinstance(q,(int,float)) for q in value]):
                 if (value[0] <= current_startparamdict[key]) and (value[1] >= current_startparamdict[key]):
-                    getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber)).start_bounds_paramdict = value
+                    getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber)).start_bounds_paramdict[key] = value
                 else:
                     print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters_limits"))
                     print("The lower bound must be below the initial value and the upper bounds must be above the initial value. It's not the case now. Not setting this supplied key-value pair for bounds: {}".format((key,value)))
@@ -863,7 +863,11 @@ class MainWindow(QtGui.QMainWindow):
             print("You put something other than a list as crop limits. This is not allowed, not setting any crop limits")
             return False
         # Check if the list contains two elements and if they are numbers
-        if not (len(croplimits_arg == 2) and all([isinstance(q,(int,float)) for q in croplimits_arg])):
+
+        croplimits_arg = [np.inf if q == "inf" else q for q in croplimits_arg]
+        croplimits_arg = [-np.inf if q == "-inf" else q for q in croplimits_arg]
+
+        if not (len(croplimits_arg) == 2 and all([isinstance(q,(int,float)) for q in croplimits_arg])):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_crop_limits"))
             print("Either the length of your crop limits argument is not 2 or the values you put in are not numbers. This is not allowed, not setting any crop limits. Here is what you put in: {}".format(croplimits_arg))
             return False
@@ -989,8 +993,8 @@ class MainWindow(QtGui.QMainWindow):
 
 def runPlotter(sysargs):
 
-    #HOST = "127.0.0.1"
-    HOST = "134.93.212.68"
+    HOST = "127.0.0.1"
+    #HOST = "134.93.212.68"
     
     # this is the server for one-way communication, no responses
     PORT = 5757

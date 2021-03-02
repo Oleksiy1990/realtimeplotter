@@ -9,6 +9,7 @@ import socket
 import json
 import sys
 import numpy as np
+import random
 
 HOST = "127.0.0.1"
 PORT = 5757
@@ -40,6 +41,15 @@ def receive_message(socket_in):
             message_length -= BUFFER_SIZE
     return full_message_bytes.decode("utf-8")
 
+def generate_experimental_datalist(path,column):
+    dataset = np.loadtxt(path + "/probCorrByIon.dat",skiprows=5)
+    independentvar = dataset[:,0]
+    dependentvar = dataset[:,column]
+    errorvar = dataset[:,column+1]
+    result = list(zip(independentvar,dependentvar,errorvar))
+    return result
+    
+
 
 
 mymethod = "doClear"
@@ -68,8 +78,10 @@ mymessagedict2 = {"jsonrpc":"2.0",
                  "id":1}
 #print(mymessagedict2)
 
-datapts = [{"curveNumber":1,"xval":x,
-                            "yval":np.sin(3*x),"yerr":0.05} for x in np.linspace(0,20,100)]
+xr = np.random.rand(200)*50
+
+datapts = [{"curveNumber":2,"xval":x,
+                            "yval":np.sin(3*x) + random.random()-0.5,"yerr":0.05} for x in xr]
 
 mymethod4 = "addData"
 myparams4 = {"pointList":datapts}
@@ -81,13 +93,21 @@ mymessagedict4 = {"jsonrpc":"2.0",
 mymethod5 = "doFit"
 myparams5 = {"fitFunction":"sinewave",
              "curveNumber": 1,
-             "startingParameters":{"frequency":3/(2*np.pi),
-                                   "amplitude":1,
+             "startingParameters":{"frequency":2e6,
+                                   "amplitude":0.5,
                                    "phase":0,
-                                   "verticaloffset":0.},
+                                   "verticaloffset":0.5},
              "fitMethod":"differential_evolution",
              #"fitterOptions":{"method":"trust-constr"},
-             "performFitting":""}
+             "performFitting":"",
+
+        "startingParametersLimits":{"frequency":[1e6,3e6],
+                                   "amplitude":[0.3, 0.7],
+                                   "phase":[-np.pi,np.pi],
+                                   "verticaloffset":[0.4,0.6]},
+        "cropLimits":["-inf","inf"],
+        "fitterOptions":{"mutation":0.9}
+        }
 mymessagedict5 = {"jsonrpc":"2.0", 
                  "method":mymethod5,
                  "params":myparams5,
@@ -95,11 +115,33 @@ mymessagedict5 = {"jsonrpc":"2.0",
 
 mymessagedict6 = {"jsonrpc":"2.0", 
                  "method":"getFitResult",
-                 "params":{"curveNumber":1},
+                 "params":{"curveNumber":2},
                  "id":1}
 
 
-r1 = json.dumps(mymessagedict6)
+
+datapts = [{"curveNumber":1,"xval":x,
+                            "yval":np.sin(3*x),"yerr":0.05} for x in np.linspace(0,20,100)]
+
+mymethod7 = "addData"
+myparams7 = {"pointList":datapts}
+mymessagedict7 = {"jsonrpc":"2.0", 
+                 "method":mymethod7,
+                 "params":myparams7,
+                 "id":1}
+
+path = "C:/Users/Oleksiy/Documents/UniMainz/PhononFit/testdata/Sinedata/201203/22"
+datalist = generate_experimental_datalist(path, 2)
+datapts = [{"curveNumber":1,"xval":x[0],
+                            "yval":x[1],"yerr":x[2]} for x in datalist]
+mymethod8 = "addData"
+myparams8 = {"pointList":datapts}
+mymessagedict8 = {"jsonrpc":"2.0", 
+                 "method":mymethod8,
+                 "params":myparams8,
+                 "id":1}
+
+r1 = json.dumps(mymessagedict5)
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 
