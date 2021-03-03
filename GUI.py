@@ -354,8 +354,6 @@ class MainWindow(QtGui.QMainWindow):
 
     def process_makefit_button(self) -> bool:
 
-        # TODO: Make sure that when a fit is plotted, it doesn't repeat writing the legend name, because it does now
-        # TODO: Make sure that it doesn't delete the curve that is not being fitted
         # If we are going to do the fit, we should close the prefit dialog window no matter what
         if self.prefitDialogWindow:
             self.prefitDialogWindow.close()
@@ -370,9 +368,15 @@ class MainWindow(QtGui.QMainWindow):
         currentFitter = GeneralFitter1D(getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)))
         # 2) setup fit
         result_setupfit = currentFitter.setup_fit()
+
         if result_setupfit is True:
             # 3) perform the fit
             result_dofit = currentFitter.do_fit()
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_makefit_button"))
+            print("setup_fit() function from the fitter class returned False. Fitting impossible. Not doing anything \n")
+            return False
+
         if result_dofit is True:
             # 4) If the fit result is good, according to the fitter message, we want to plot it
             if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).is_fit_successful is True:
@@ -394,6 +398,9 @@ class MainWindow(QtGui.QMainWindow):
 
                 # clear the original plot
                 getattr(self,self.plot_line_name+"{:d}".format(current_curve_number)).clear()
+                # and make sure to clear the legend otherwise it will be repeated with every fit
+                getattr(self,self.legend_item_name).removeItem(getattr(self,self.plot_line_name+"{:d}".format(current_curve_number)))
+
                 # set the data plotter to have no pen, so draw no line itself
                 setattr(self,self.plot_line_name+"{:d}".format(current_curve_number),
                         self.graphWidget.plot(symbol="o",
@@ -424,7 +431,12 @@ class MainWindow(QtGui.QMainWindow):
                 self.TextBoxForOutput.setCurrentFont(QtGui.QFont("Helvetica",
                         pointSize=10,
                         weight = QtGui.QFont.Bold))
-                self.TextBoxForOutput.append("Curve {} fit results:".format(self.legend_label_dict["curve{:d}".format(current_curve_number)]))
+                self.TextBoxForOutput.append("Curve {:d} {} fit results:".format(current_curve_number,
+                                            self.legend_label_dict["curve{:d}".format(current_curve_number)]))
+                # Write a warning message if the error bars were wrong (so at least one was 0)
+                if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).are_errorbars_correct is False:
+                    self.TextBoxForOutput.append("WARNING! Curve {:d} {}: you supplied wrong error bars! One of the error bars was 0. Error bars were ignored in the fit".format(current_curve_number,
+                        self.legend_label_dict["curve{:d}".format(current_curve_number)]))
                 for (key,val) in getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).result_paramdict.items():
                     self.TextBoxForOutput.setCurrentFont(QtGui.QFont("Helvetica",
                         pointSize=10,
@@ -438,7 +450,8 @@ class MainWindow(QtGui.QMainWindow):
                                                                  pointSize=10,
                                                                  weight=QtGui.QFont.Bold))
                 self.TextBoxForOutput.append(
-                    "Curve {} : Fit failed".format(self.legend_label_dict["curve{:d}".format(current_curve_number)]))
+                    "Curve {:d} {} : Fit failed".format(current_curve_number,
+                                    self.legend_label_dict["curve{:d}".format(current_curve_number)]))
                 return True
             #this else condition will be used if the fit result is not a success
         else:

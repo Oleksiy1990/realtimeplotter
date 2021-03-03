@@ -92,8 +92,8 @@ mymessagedict4 = {"jsonrpc":"2.0",
 
 mymethod5 = "doFit"
 myparams5 = {"fitFunction":"sinewave",
-             "curveNumber": 1,
-             "startingParameters":{"frequency":2e6,
+             "curveNumber": 3,
+             "startingParameters":{"frequency":1/0.8e-5,
                                    "amplitude":0.5,
                                    "phase":0,
                                    "verticaloffset":0.5},
@@ -101,7 +101,7 @@ myparams5 = {"fitFunction":"sinewave",
              #"fitterOptions":{"method":"trust-constr"},
              "performFitting":"",
 
-        "startingParametersLimits":{"frequency":[1e6,3e6],
+        "startingParametersLimits":{"frequency":[1/0.3e-5,1/2e-5],
                                    "amplitude":[0.3, 0.7],
                                    "phase":[-np.pi,np.pi],
                                    "verticaloffset":[0.4,0.6]},
@@ -120,8 +120,8 @@ mymessagedict6 = {"jsonrpc":"2.0",
 
 
 
-datapts = [{"curveNumber":1,"xval":x,
-                            "yval":np.sin(3*x),"yerr":0.05} for x in np.linspace(0,20,100)]
+datapts = [{"curveNumber":2,"xval":x,
+                            "yval":np.sin(3*x),"yerr":0.05} for x in np.linspace(0,2e-5,100)]
 
 mymethod7 = "addData"
 myparams7 = {"pointList":datapts}
@@ -130,9 +130,9 @@ mymessagedict7 = {"jsonrpc":"2.0",
                  "params":myparams7,
                  "id":1}
 
-path = "C:/Users/Oleksiy/Documents/UniMainz/PhononFit/testdata/Sinedata/201203/22"
-datalist = generate_experimental_datalist(path, 2)
-datapts = [{"curveNumber":1,"xval":x[0],
+path = "C:/Users/Oleksiy/Documents/UniMainz/PhononFit/testdata/Sinedata/201216/02"
+datalist = generate_experimental_datalist(path, 10)
+datapts = [{"curveNumber":3,"xval":x[0],
                             "yval":x[1],"yerr":x[2]} for x in datalist]
 mymethod8 = "addData"
 myparams8 = {"pointList":datapts}

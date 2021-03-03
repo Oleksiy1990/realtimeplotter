@@ -59,14 +59,14 @@ class GeneralFitter1D:
         is_preprocessing_good = self.fitmodel_input.preprocess_data()
         if is_preprocessing_good is False:
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "setup_fit"))
-            print("Preprocessing failed")
+            print("Preprocessing failed \n")
             return False
 
         # check if minimization method is legal from the point of view of scipy.optimize
         if not hasattr(sopt, self.fitmodel_input.minimization_method_str):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "setup_fit"))
             print(
-                "You provided a minimization method that is not in scipy.optimize library. Not fitting anything")
+                "You provided a minimization method that is not in scipy.optimize library. Not fitting anything \n")
             return False
 
         is_prefit_good = self.fitmodel_input.do_prefit()

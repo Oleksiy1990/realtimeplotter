@@ -14,6 +14,8 @@ import math
 import mathfunctions.fitmodels as fitmodels
 
 class Fitmodel:
+
+    MAX_ERROR_RESOLUTION = 1e20 # 1 over that is the smallest error bar that is considered physical, if it's less, it's considered 0 and so unphysical
     def __init__(self,fitfunction_name = "",
                  #fitfunction_number = -1, #Not quite sure what this is
                  x_axis_vals = [],
@@ -25,6 +27,8 @@ class Fitmodel:
         self.xvals_orig = x_axis_vals
         self.yvals_orig = measured_data
         self.errorbars_orig = errorbars_data
+        self.are_errorbars_correct = True
+        self.are_errorbars_given = False
 
         # this gets automatically loaded in order to make it available
         self.start_paramdict = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
@@ -77,29 +81,37 @@ class Fitmodel:
             # make sure that error bars are correctly formatted, have the correct length, etc
             if self.errorbars_orig is None:
                 self.areErrorbarsGiven = False
-                self.errorbars_orig = np.ones(self.xvals.shape, dtype=float)
+                self.are_errorbars_correct = True
+                self.errorbars_orig = np.ones(self.xvals_orig.shape, dtype=float)
             else:
                 self.errorbars_orig = np.array(self.errorbars_orig)
+                #TODELETE
+                print(np.any(self.errorbars_orig <= np.abs(self.errorbars_orig)/self.MAX_ERROR_RESOLUTION))
+                if np.any(self.errorbars_orig <= np.abs(self.errorbars_orig)/self.MAX_ERROR_RESOLUTION): # this means that at least one of the errors is 0
+                    #TODELETE
+                    print("from fitmodelclass preprocess_data: we detected at least one zero errorbar")
+                    self.are_errorbars_correct = False
+                    self.errorbars_orig = np.ones(self.xvals_orig.shape, dtype=float)
         except:
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
             print(
-                "Preprocessing failed. Apparently something could not be converted into numpy arrays")
+                "Preprocessing failed. Apparently something could not be converted into numpy arrays \n")
             return False
 
         # check if fit function name is legal (so defined in our file)
         if not hasattr(fitmodels,self.fitfunction_name_string):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
-            print("Fit model is not in fitmodels.py file, so such fit model is undefined. Not fitting anything. You provided this fitmodeL: {}".format(self.fitmodel_input))
+            print("Fit model is not in fitmodels.py file, so such fit model is undefined. Not fitting anything. You provided this fitmodeL: {} \n".format(self.fitmodel_input))
             return False
 
         # check if the data are legal =========
         if len(self.xvals_orig) < 2 or len(self.yvals_orig) < 2:
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
-            print("Your x-values and y-values must have length at least 2 to try any fits. Not fitting anything")
+            print("Your x-values and y-values must have length at least 2 to try any fits. Not fitting anything \n")
             return False
         if len(self.xvals_orig) != len(self.yvals_orig):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
-            print("Your x and y values must have the same length. Not fitting anything")
+            print("Your x and y values must have the same length. Not fitting anything \n")
             return False
         if len(self.errorbars_orig) != len(self.xvals_orig):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
@@ -111,7 +123,7 @@ class Fitmodel:
         # we artificially set bounds to infinity,
         # just because we want to keep it uniform
         # this produces self.xvals, self.yvals, self.errorbars
-        self._remove_zero_errorbars()
+        #self._remove_zero_errorbars()
 
         # check again if we didn't crop out all the data
         if len(self.xvals) < 2 or len(self.yvals) < 2:
