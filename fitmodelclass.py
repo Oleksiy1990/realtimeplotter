@@ -143,7 +143,7 @@ class Fitmodel:
         self.errorbars_orig = self.errorbars_orig[xaxis_indices]
 
     def _do_cropping(self) -> None:
-        crop_x_mask = (self.xvals_orig > self.crop_bounds_list[0]) & (self.xvals_orig < self.crop_bounds_list[1])
+        crop_x_mask = (self.xvals_orig >= self.crop_bounds_list[0]) & (self.xvals_orig <= self.crop_bounds_list[1])
         # make copies in order to always keep the old one available if necessary
         self.xvals = self.xvals_orig[crop_x_mask].copy()
         self.yvals = self.yvals_orig[crop_x_mask].copy()

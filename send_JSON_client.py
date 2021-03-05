@@ -130,18 +130,53 @@ mymessagedict7 = {"jsonrpc":"2.0",
                  "params":myparams7,
                  "id":1}
 
-path = "C:/Users/Oleksiy/Documents/UniMainz/PhononFit/testdata/Sinedata/201216/02"
-datalist = generate_experimental_datalist(path, 10)
-datapts = [{"curveNumber":3,"xval":x[0],
+#path = "C:/Users/Oleksiy/Documents/UniMainz/PhononFit/testdata/Sinedata/27"
+#datalist = generate_experimental_datalist(path, 2)
+#datapts = [{"curveNumber":3,"xval":x[0],
+#                            "yval":x[1],"yerr":x[2]} for x in datalist]
+#mymethod9 = "addData"
+#myparams9 = {"pointList":datapts}
+#mymessagedict9 = {"jsonrpc":"2.0", 
+#                 "method":mymethod9,
+#                 "params":myparams9,
+#                 "id":1}
+
+path = "C:/Users/Oleksiy/Documents/UniMainz/PhononFit/testdata/Lorentziandata/27"
+datalist = generate_experimental_datalist(path, 2)
+datapts = [{"curveNumber":1,"xval":x[0],
                             "yval":x[1],"yerr":x[2]} for x in datalist]
-mymethod8 = "addData"
-myparams8 = {"pointList":datapts}
-mymessagedict8 = {"jsonrpc":"2.0", 
-                 "method":mymethod8,
-                 "params":myparams8,
+mymethod9 = "addData"
+myparams9 = {"pointList":datapts}
+mymessagedict9 = {"jsonrpc":"2.0", 
+                 "method":mymethod9,
+                 "params":myparams9,
                  "id":1}
 
-r1 = json.dumps(mymessagedict5)
+
+mymethod10 = "doFit"
+myparams10 = {"fitFunction":"gaussian",
+             "curveNumber": 1,
+             "startingParameters":{"height":0.4,
+                                   "center":76.57,
+                                   "sigma":0.0005,
+                                   "verticaloffset":0.},
+             "fitMethod":"differential_evolution",
+             #"fitterOptions":{"method":"trust-constr"},
+             "performFitting":"",
+
+        "startingParametersLimits":{"height":[0.,1],
+                                   "center":[76.569, 76.571],
+                                   "sigma":[0.00001,0.001],
+                                   "verticaloffset":[0,0.1]},
+            "cropLimits":["-inf","inf"],
+            "fitterOptions":{"mutation":0.9}
+             }   
+mymessagedict10 = {"jsonrpc":"2.0", 
+                 "method":mymethod10,
+                 "params":myparams10,
+                 "id":1}
+
+r1 = json.dumps(mymessagedict10)
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 
