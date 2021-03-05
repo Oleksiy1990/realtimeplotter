@@ -35,7 +35,7 @@ class JSONread():
     that can vary, and that will be written in the manual
     """
     # options to put as params keys for doClear method
-    doClear_message_keys = ["clearData"]
+    doClear_message_keys = ["clearData","clearConfig"]
 
     # options to put as params keys for setConfig method
     setConfig_message_keys = ["axisLabels",
@@ -283,49 +283,6 @@ class JSONread():
                     list(params_dict.keys())))
         return output
 
-
-"""
-What follows is a list of functions, all written according to similar design strategy and more or less similar implementation
-in order to parse the particular string messages and return the output to config interpreter for further processing.
-Each of these functions has to be called in EXACTLY the same way as the key in config_command_dictionary, and it takes two arguments:
-    input_pattern_raw_string, which is the value corresponding to the key that gives function name in config_command_dictionary, and
-    the second argument is message_parts_list, which is just the semicolon-separated list of strings that comes after config; string
-In this way, new configurations can be added smoothly by just adding to the dictionary config_command_dictionary, and then defining 
-the corresponding function below
-"""
-def process_cleardata(input_pattern_raw_string,message_parts_list):
-    full_Cleardata_pattern = r"({:s})\s+(all|\d{{1,}}\s*)".format(input_pattern_raw_string)
-    for individual_message in message_parts_list:
-        search_res = re.search(full_Cleardata_pattern,individual_message)
-        if search_res:
-           message_parts_list.remove(individual_message) # That's just so that if we already found something
-           #we don't use it in any further searches
-           return ("clear_data",search_res.group(2))
-    return None
-
-def process_axisLabels(input_pattern_raw_string,message_parts_list):
-    full_axisLabels_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
-    for individual_message in message_parts_list:
-        search_res = re.search(full_axisLabels_pattern,individual_message)
-        if search_res:
-            axisLabels = search_res.group(2)
-            each_axis_label = axisLabels.split(",")
-            if len(each_axis_label) == 2:
-                message_parts_list.remove(individual_message)
-                return ("set_axis_labels",each_axis_label)
-            else:
-                print("Message from function process_axisLabels: set_axis_labels argument must be two strings separated by a comma. Command must be of the form: set_axis_labels myFavorite X name , myFavorite Y name; Now it's not in that form. Not labeling axes")
-    return None
-
-def process_plotTitle(input_pattern_raw_string,message_parts_list):
-    full_plotTitle_pattern = r"({:s})\s+(.*)".format(input_pattern_raw_string)
-    for individual_message in message_parts_list:
-        search_res = re.search(full_plotTitle_pattern,individual_message)
-        if search_res:
-            plottitle = search_res.group(2)
-            message_parts_list.remove(individual_message)
-            return ("set_plot_title",plottitle)
-    return None
 
 if __name__ == "__main__":
     pass

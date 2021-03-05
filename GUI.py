@@ -139,9 +139,6 @@ class MainWindow(QtGui.QMainWindow):
         self.errorbar_pen_name = "errpen"
         self.fitmodel_instance_name = "fitmodel"
 
-
-        self.fitmethod_string = "differential_evolution"
-
         self.all_instance_attribute_names = [self.xaxis_name,
                 self.yaxis_name,
                 self.err_name,
@@ -153,7 +150,7 @@ class MainWindow(QtGui.QMainWindow):
                 self.errorbar_pen_name,
                 self.fitmodel_instance_name]
 
-        #self.x = [] # This is the x-axis for all plots
+        self.all_instance_attribute_config_names = []
 
         self.legend_label_list = [] # processed in self._create_plotline
         self.legend_label_dict = {}
@@ -197,7 +194,7 @@ class MainWindow(QtGui.QMainWindow):
         self.MakeFitButton = QtGui.QPushButton("Do fit")
         self.PrefitButton = QtGui.QPushButton("Prefit")
         self.RegisterCurvesButton = QtGui.QPushButton("Reg. cv.")
-        self.RegisterCurvesButton.clicked.connect(self.register_available_curves)
+        self.RegisterCurvesButton.clicked.connect(self._register_available_curves)
         self.MakeFitButton.clicked.connect(self.process_makefit_button)
         self.PrefitButton.clicked.connect(self.process_Prefit_button)
         
@@ -306,51 +303,11 @@ class MainWindow(QtGui.QMainWindow):
         print("Function interpreter.message_interpreter could not determine which function to call based on analyzing the transmitted message. Not calling any function. Here is the message that you transmitted (verbatim): {} \n".format(verbatim_message))
 
     # TODO: Get rid of this function and button correctly. They are registered immediately as they come in.
-    def register_available_curves(self) -> None:
+    def _register_available_curves(self) -> None:
         self.PlotNumberChoice.clear()
         for idx in range(self.MAX_NUM_CURVES):
             if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
                 self.PlotNumberChoice.addItem("{:d}".format(idx))        
-
-    # I don't think this is necessary. Probably to delete later
-    # TODO Figure out what this function does, because now it probably will not work
-    def checkAndReturnDataPrefit(self):
-        """
-        This function checks if the correct curve has been chosen, if the 
-        data exists for that curve, and then returns a tuple containing 
-        x-vals, y-vals , errorbars (errorbars can be None, the functions 
-        downstream should be able to take care of that)
-        """
-        if self.FitFunctionChoice.currentText() == "None":
-            print("Chosen fit function is None. Not doing anything")
-            return None
-        else:
-            try:
-                fitCurveNumber = int(self.PlotNumberChoice.currentText())
-            except:
-                print("Message from Class {:s} function checkAndReturnDataPrefit: fitCurveNumber is undefined. Not doing anything ".format(self.__class__.__name__))
-                return None
-            if not hasattr(self,self.yaxis_name+"{:d}".format(fitCurveNumber)):
-                print("Message from Class {:s}: the curve number that you are trying to fit does not exist. Not doing anything".format(self.__class__.__name__))
-                return None
-            if len(getattr(self,self.yaxis_name+"{:d}".format(fitCurveNumber))) == 0:
-                print("Message from Class {:s}: the curve number that you are trying to fit probably got deleted before. Not doing anything".format(self.__class__.__name__))
-                return None
-
-            # if there is no error bar curve, we set it to None, 
-            #and then functions downstream will take 
-            #care of it
-            if hasattr(self,self.err_name+"{:d}".format(fitCurveNumber)):
-                if len(getattr(self,self.err_name+"{:d}".format(fitCurveNumber))) == 0:
-                    setattr(self,self.err_name+"{:d}".format(fitCurveNumber),None)
-            else:
-                setattr(self,self.err_name+"{:d}".format(fitCurveNumber),None)
-
-        return (self.x,
-                getattr(self,self.yaxis_name+"{:d}".format(fitCurveNumber)),
-                getattr(self,self.err_name+"{:d}".format(fitCurveNumber))) 
-                # They are not sorted!
-        
 
     def process_makefit_button(self) -> bool:
 
@@ -571,6 +528,32 @@ class MainWindow(QtGui.QMainWindow):
         return True
         # TODO: Make sure to delete PlotNumberChoice entry when the clear command is issued
 
+    def _clear_curve(self,curvenumber: int) -> bool:
+        # First we remove everything from the plot for this curve
+        if hasattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)):
+            #TODELETE
+            print("in GUI.py _clear_curve trying to remove errorbar_item")
+            #self.graphWidget.removeItem(getattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)))
+            getattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)).setData(pen=pg.mkPen(None))
+
+        if hasattr(self,self.plot_line_name+"{:d}".format(curvenumber)):
+            #getattr(self,self.plot_line_name+"{:d}".format(curvenumber)).clear()
+            self.graphWidget.removeItem(getattr(self,self.plot_line_name+"{:d}".format(curvenumber)))
+        if hasattr(self, self.fitplot_line_name + "{:d}".format(curvenumber)):
+            #getattr(self, self.fitplot_line_name + "{:d}".format(curvenumber)).clear()
+            self.graphWidget.removeItem(getattr(self, self.fitplot_line_name + "{:d}".format(curvenumber)))
+        if hasattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)):
+            #TODELETE
+            print("in GUI.py _clear_curve trying to remove errorbar_item")
+            #self.graphWidget.removeItem(getattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)))
+            getattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)).setData(bottom=0,
+                                                                                        top=0)
+
+        for entry in self.all_instance_attribute_names:
+            if hasattr(self,entry+"{:d}".format(curvenumber)):
+                delattr(self,entry+"{:d}".format(curvenumber))
+        return True
+
 
     # This function is for real-time plotting of data points, 
     #just as they come in through TCP/IP
@@ -578,9 +561,7 @@ class MainWindow(QtGui.QMainWindow):
     #def generate_plot_pointbypoint(self,datapoint): # this is the old name for the plotting function
     def plot_single_datapoint(self,plot_single_datapoint_arg: dict) -> bool:
         """
-        OLD: data points are supposed to be sent as tuples in the format (x_val,[y1_val,y2_val,...],[y1_err,y2_err,...]). If the length of the tuple is 3, we have error bars, if the length of the tuple is 2, we do not have error bars
         """
-
         # =============== Data format check ================================
         # We first have to check if the data format for this data point dictionary is correct
         # if it is not, we don't plot anything
@@ -683,32 +664,40 @@ class MainWindow(QtGui.QMainWindow):
         if hasattr(self, self.legend_item_name):
             getattr(self, self.legend_item_name).clear()
 
-    def clear_data(self,clear_data_arg: int) -> bool:
-        if clear_data_arg == "all":
-            self.x = []
-            for idx in range(MAX_CURVES):
-                for attr_name in self.all_instance_attribute_names:
-                    if hasattr(self,attr_name+"{:d}".format(idx)):
-                        delattr(self,attr_name+"{:d}".format(idx))
-                    else:
-                        pass
-            self.clear_plot("")
-            self.num_datasets = 0
-            self.PlotNumberChoice.clear()
-            self.legend_label_list = []
-            if hasattr(self, self.legend_item_name):
-                getattr(self, self.legend_item_name).clear()
-            return True
-        # TODO maybe implement the idea of deleting curves one by one
-        elif isinstance(clear_data_arg,int):
-            print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"clear_data"))
-            print("This argument type has not been implemented yet. Doing nothing")
-            return False # for now, so that it doesn't fail
-            # The code below is unreachable, but that's OK, it's not ready yet
-        else:
-            print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"clear_data"))
-            print("Your argument to clear_data is: {} . This is not allowed. Not doing anything".format(clear_data_arg))
+    def clear_data(self,clear_data_arg: Union[int,str]) -> bool:
+        if not isinstance(clear_data_arg, (int,str)):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_data"))
+            print("You supplied something other than an integer or string as the function argument. Not doing anything \n")
             return False
+
+        if clear_data_arg == "all":
+            for idx in range(self.MAX_NUM_CURVES):
+                self._clear_curve(idx)
+            self.clear_plot("") # TODO! Make sure that this works correctly for clearing individual curves
+            getattr(self, self.legend_item_name).clear()
+            self.PlotNumberChoice.clear() # Clear all choices because there are no curves left at this point
+            return True
+
+        if not isinstance(clear_data_arg,int):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_data"))
+            print(
+                "You supplied something other than all or integer into clear_data. This command cannot be performed \n")
+            return False
+
+        self._clear_curve(clear_data_arg)
+        self._register_available_curves() # This will clear out the plot number choice box, and then register again what's left
+        return True
+
+    def clear_config(self,clear_config_arg: str) -> bool:
+        if not isinstance(clear_config_arg, str):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_config"))
+            print("You supplied something other than a string as the function argument. Not doing anything \n")
+            return False
+        if clear_config_arg == "all":
+            self.graphWidget.setLabel('bottom',text="")
+            self.graphWidget.setLabel('left',text="")
+            self.graphWidget.setTitle(title="")
+            return True
 
     def set_axis_labels(self,axis_labels_arg: List[str]) -> bool:
         if len(axis_labels_arg) != 2:
@@ -825,9 +814,10 @@ class MainWindow(QtGui.QMainWindow):
             return False
 
         # this current_curvenumber should have been registered before with the curve number parameter
+        # TODO: Check this bug. Apparently it crashes when the fit model has not been registered
         current_curvenumber = int(self.PlotNumberChoice.currentText())
         for (key,value) in supplied_startparams_dict.items():
-            if key in getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber)).start_paramdict:
+            if key in getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber)).start_paramdict.keys():
                 getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curvenumber)).start_paramdict[key] = value
             else:
                 print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters"))

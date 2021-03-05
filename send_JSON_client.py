@@ -53,7 +53,7 @@ def generate_experimental_datalist(path,column):
 
 
 mymethod = "doClear"
-myparams = {"clearData": "all"}
+myparams = {"clearData": 1}
 mymessagedict = {"jsonrpc":"2.0", 
                  "method":mymethod,
                  "params":myparams,
@@ -80,7 +80,7 @@ mymessagedict2 = {"jsonrpc":"2.0",
 
 xr = np.random.rand(200)*50
 
-datapts = [{"curveNumber":2,"xval":x,
+datapts = [{"curveNumber":1,"xval":x,
                             "yval":np.sin(3*x) + random.random()-0.5,"yerr":0.05} for x in xr]
 
 mymethod4 = "addData"
@@ -92,7 +92,7 @@ mymessagedict4 = {"jsonrpc":"2.0",
 
 mymethod5 = "doFit"
 myparams5 = {"fitFunction":"sinewave",
-             "curveNumber": 3,
+             "curveNumber": 1,
              "startingParameters":{"frequency":1/0.8e-5,
                                    "amplitude":0.5,
                                    "phase":0,
@@ -176,7 +176,16 @@ mymessagedict10 = {"jsonrpc":"2.0",
                  "params":myparams10,
                  "id":1}
 
-r1 = json.dumps(mymessagedict10)
+mymethod11 = "doClear"
+myparams11 = {"clearData":"all"}
+
+mymessagedict11 = {"jsonrpc":"2.0", 
+                 "method":mymethod11,
+                 "params":myparams11,
+                 "id":1}
+
+
+r1 = json.dumps(mymessagedict11)
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 
