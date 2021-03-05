@@ -9,6 +9,7 @@ manual/**
 !manual/*.tex
 !manual/*.bib
 
+
 # Ignore other random generated files
 *.png
 *.dat
@@ -21,3 +22,6 @@ mathfunctions/__pycache__/**
 
 # Ignore the pycharm files
 .idea/**
+
+# Ignore test data files
+testdata/

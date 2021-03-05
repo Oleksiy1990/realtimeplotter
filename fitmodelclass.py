@@ -10,50 +10,197 @@ with string versions of their names, and then getattr() and so on
 """
 
 import numpy as np
+import math
 import mathfunctions.fitmodels as fitmodels
 
 class Fitmodel:
-    def __init__(self,fitfunction_name,fitfunction_number,x_axis_vals,measured_data,errorbars_in = None):
-        
+
+    MAX_ERROR_RESOLUTION = 1e20 # 1 over that is the smallest error bar that is considered physical, if it's less, it's considered 0 and so unphysical
+    def __init__(self,fitfunction_name = "",
+                 #fitfunction_number = -1, #Not quite sure what this is
+                 x_axis_vals = [],
+                 measured_data = [],
+                 errorbars_data = None):
+        #input data
         self.fitfunction_name_string = fitfunction_name
-        self.fit_function_number = fitfunction_number
-        self.fit_isdone = False
-        self.fit_issuccessful = False
+        #self.fit_function_number = fitfunction_number
+        self.xvals_orig = x_axis_vals
+        self.yvals_orig = measured_data
+        self.errorbars_orig = errorbars_data
+        self.are_errorbars_correct = True
+        self.are_errorbars_given = False
+
+        # this gets automatically loaded in order to make it available
+        self.start_paramdict = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
+        self.start_bounds_paramdict = getattr(fitmodels, self.fitfunction_name_string + "_paramdict")()
+
+        # this loads the dictionaries again, but now for storing the fit parameters
+        self.result_paramdict = getattr(fitmodels, self.fitfunction_name_string + "_paramdict")()
+        # the next one is for fit uncertainties, but it will not be used for now
+        #self.result_bounds_paramdict = getattr(fitmodels, self.fitfunction_name_string + "_paramdict")()
+        self.result_fulloutput = None
+        self.result_objectivefunction = -1
+
+        self.crop_bounds_list = [-math.inf,math.inf] # this is to make the treatment uniform,
+        #anyway is infinity beyond any real number
+        self.minimization_method_str = "least_squares"
+        self.fitter_options_dict = {}
+
+        self.is_fit_done = False
+        self.is_fit_successful = False
         self.are_correct_data_loaded = False
-        self.xvals_orig = None
-        self.yvals_orig = None
-        self.errorbars_orig = None
+        self.xvals = None
+        self.yvals = None
+        self.errorbars = None
 
-        #print("Globals in the file containing Fitmodel: ",fitmodels)
+    def preprocess_data(self) -> bool:
+        """
+        Preprocessor to make sure that the given x_values, y_values, and errorbars are given in the correct format, have the same length,and then
+        eventually to turn them all into 1D numpy arrays. Also this makes sure that if error bars are not given, they are just set to 1, which
+        makes sense for fitting
+
+        The output is SORTED!
+
+        We need to make the following checks on the data:
+        1) legal lists of x and y values. We check it here, we check only that the lengths
+        match, we don't check if the lists contain any nonsense, like a non-number.
+        It's assumed that such data is not sent, and if it is, it should be filtered out
+        in the main file
+        2) legal errorbars list or None. If there is the errorbars list, then it should
+        be of the same length as x and y values
+        3) legal fit function name
+
+
+        """
+        # First we try to convert the data into numpy arrays, and if it fails, we
+        # return False
+        try:
+            self.xvals_orig = np.array(self.xvals_orig)
+            self.yvals_orig = np.array(self.yvals_orig)
+
+            # make sure that error bars are correctly formatted, have the correct length, etc
+            if self.errorbars_orig is None:
+                self.areErrorbarsGiven = False
+                self.are_errorbars_correct = True
+                self.errorbars_orig = np.ones(self.xvals_orig.shape, dtype=float)
+            else:
+                self.errorbars_orig = np.array(self.errorbars_orig)
+                #TODELETE
+                print(np.any(self.errorbars_orig <= np.abs(self.errorbars_orig)/self.MAX_ERROR_RESOLUTION))
+                if np.any(self.errorbars_orig <= np.abs(self.errorbars_orig)/self.MAX_ERROR_RESOLUTION): # this means that at least one of the errors is 0
+                    #TODELETE
+                    print("from fitmodelclass preprocess_data: we detected at least one zero errorbar")
+                    self.are_errorbars_correct = False
+                    self.errorbars_orig = np.ones(self.xvals_orig.shape, dtype=float)
+        except:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
+            print(
+                "Preprocessing failed. Apparently something could not be converted into numpy arrays \n")
+            return False
+
+        # check if fit function name is legal (so defined in our file)
         if not hasattr(fitmodels,self.fitfunction_name_string):
-            print("Message from Class {}: fit function {} is undefined, not doing anything".format(self.__class__.__name__,self.fitfunction_name_string))
-            return None
-       
-        datacheck_result = self.checkandsetData(x_axis_vals,measured_data,errorbars_in) # comes out already sorted!
-        if datacheck_result is True:
-            self.are_correct_data_loaded = True
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
+            print("Fit model is not in fitmodels.py file, so such fit model is undefined. Not fitting anything. You provided this fitmodeL: {} \n".format(self.fitmodel_input))
+            return False
+
+        # check if the data are legal =========
+        if len(self.xvals_orig) < 2 or len(self.yvals_orig) < 2:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
+            print("Your x-values and y-values must have length at least 2 to try any fits. Not fitting anything \n")
+            return False
+        if len(self.xvals_orig) != len(self.yvals_orig):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
+            print("Your x and y values must have the same length. Not fitting anything \n")
+            return False
+        if len(self.errorbars_orig) != len(self.xvals_orig):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
+            print("You provided a list of error bar values, but they are not the same length as your x-values. Not fitting anything")
+            return False
+        # ===== If we made it to here, then our data are legal =======
+        self._sort_xaxis()
+        self._do_cropping() # we always do cropping because even if there are no bounds
+        # we artificially set bounds to infinity,
+        # just because we want to keep it uniform
+        # this produces self.xvals, self.yvals, self.errorbars
+        #self._remove_zero_errorbars()
+
+        # check again if we didn't crop out all the data
+        if len(self.xvals) < 2 or len(self.yvals) < 2:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "preprocess_data"))
+            print("Your x-values and y-values must be at least 2 units long. Now it's not the case, you probably cropped out everything. Not fitting anything")
+            return False
+
+        return True  # if we got to this point, there is no error, so we can return True
+
+    def _sort_xaxis(self):
+        """
+        Sorts data by the indices of the x-axis, so that basically x[0] is the leftmost coordinate value, and x[-1] is the rightmost coordinate value
+        """
+        xaxis_indices = np.argsort(self.xvals_orig)
+        self.xvals_orig = self.xvals_orig[xaxis_indices]
+        self.yvals_orig = self.yvals_orig[xaxis_indices]
+        self.errorbars_orig = self.errorbars_orig[xaxis_indices]
+
+    def _do_cropping(self) -> None:
+        crop_x_mask = (self.xvals_orig >= self.crop_bounds_list[0]) & (self.xvals_orig <= self.crop_bounds_list[1])
+        # make copies in order to always keep the old one available if necessary
+        self.xvals = self.xvals_orig[crop_x_mask].copy()
+        self.yvals = self.yvals_orig[crop_x_mask].copy()
+        self.errorbars = self.errorbars_orig[crop_x_mask].copy()
+
+    def _remove_zero_errorbars(self) -> None:
+        # NOTE!!! This replaces small errorbars by mean of all errorbars
+        mean_errorbars = np.mean(self.errorbars)
+        stddev_errorbars = np.std(self.errorbars)
+
+        self.errorbars[(self.errorbars < (mean_errorbars - stddev_errorbars)) | (self.errorbars < 1e-10)] = mean_errorbars
+
+
+    def do_prefit(self) -> bool: #TODO! NOT done yet
+
+        if (self.xvals is None) or (self.yvals is None) or (self.errorbars is None):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "do_prefit"))
+            print("Your xvals, yvals, or errorbars are not set. You probably have not preprocessed data. Not possible to do fit this way")
+            return False
+
+        if self._check_start_paramdict_isfull() is True:
+            return True
+
+        # If the check above returned False, that means that we have to automatically fill in some
+        # starting parameters, and so we do that using the "model"_prefit function from fitmodels.py
+        is_prefit_successful = getattr(fitmodels,self.fitfunction_name_string+"_prefit")(self.xvals,
+                                                                  self.yvals,
+                                                                  self.errorbars,
+                                                                  self.start_paramdict,
+                                                                  self.start_bounds_paramdict)
+        # TODELETE
+        print(
+            """
+            Message from fitmodelclass do_prefit. 
+            Here are the starting parameters: {} \n
+            Here are the starting parameters bounds: {}
+            """.format(self.start_paramdict,self.start_bounds_paramdict)
+        )
+        if is_prefit_successful:
+            return True
         else:
-            self.are_correct_data_loaded = False
-            print("Message from Class: data check failed. See earlier error messages, some array formatting, lengths, etc, was not fed correctly. Not doing anything")
-    
-        self.fit_function_base = getattr(fitmodels,self.fitfunction_name_string+"_base")
-        self.fit_function = getattr(fitmodels,self.fitfunction_name_string)
+            return False
 
-        self.fit_function_params_list = list(getattr(fitmodels,self.fitfunction_name_string+"_paramdict")().keys())
-        self.fit_function_paramdict = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
-        self.fit_function_paramdict_prefit = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
-        self.fit_function_paramdict_bounds = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
-        self.fit_result_fulloutput = None
-        self.fit_result_objectivefunction = None # this hold the value of what had to be minimized, so sum squared of residuals normally
-
-        self.do_prefit()
-    
-    def check_paramdict_isfull(self):
-        for value in self.fit_function_paramdict.values():
+    def _check_start_paramdict_isfull(self) -> bool:
+        """
+        Check if the starting parameters have been fully filled. If so, we will
+        not need to run the prefit function
+        """
+        for value in self.start_paramdict.values():
             if value is None: 
+                return False
+        for value in self.start_bounds_paramdict.values():
+            if value is None:
                 return False
         return True
 
+    # =============== Not sure if all these functions below will be necessary. This has to be checked later
     def clear_paramdict_all(self):
         self.fit_function_params_list = list(getattr(fitmodels,self.fitfunction_name_string+"_paramdict")().keys())
         self.fit_function_paramdict = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
@@ -76,113 +223,10 @@ class Fitmodel:
         else:
             print("Message from function delete_prefit_parameter: parameter name foes not exist in the dictionary for the function in use. Not doing anything")
 
-    def do_prefit(self,**kwargs):
-        """
-        Important:
-        This is the prefit routine, which fills the prefit parameter dictionary and bounds that will then
-        be passed to the fitter itself
-        """
-        prefit_function = getattr(fitmodels,self.fitfunction_name_string+"_prefit")
-        (self.fit_function_paramdict_prefit,self.fit_function_paramdict_bounds) = prefit_function(self.xvals,self.yvals,self.errorbars,self.fit_function_paramdict_prefit,
-            self.fit_function_paramdict_bounds,**kwargs)
 
 
-    def checkandsetData(self,xvals,yvals,errorbars):
 
-        """
-        Preprocessor to make sure that the given x_values, y_values, and errorbars are given in the correct format, have the same length,and then 
-        eventually to turn them all into 1D numpy arrays. Also this makes sure that if error bars are not given, they are just set to 1, which 
-        makes sense for fitting
 
-        The output is unsorted!
-        """
-        
-        # make sure that x values are either a list or a numpy array
-        if isinstance(xvals,list):
-            self.xvals = np.array(xvals)
-        elif isinstance(xvals,np.ndarray):
-            self.xvals = xvals
-        else:
-            print("Message from Class {:s} function checkandsetData: xvals must be either a list or a numpy. Initialize it again with the correct input.".format(self.__class__.__name__))
-            return False
 
-        # make sure that y values are either a list or a numpy array
-        if isinstance(yvals,list):
-            self.yvals = np.array(yvals)
-        elif isinstance(yvals,np.ndarray):
-            self.yvals = yvals
-        else:
-            print("Message from Class {:s} function checkandsetData: yvals must be either a list or a numpy. Initialize it again with the correct input.".format(self.__class__.__name__))
-            return False
-    
-        # make sure that x values and y values are both 1D arrays
-        if (len(self.xvals.shape) != 1) or (len(self.yvals.shape) != 1):
-            print("Message from Class {:s} function checkandsetData: both xvals and yvals arrays must be 1D. Initialize it again with the correct input".format(self.__class__.__name__))
-            return False
-       
-        # make sure that the lengths of the x values and y values are equal
-        if (self.xvals.shape[0] != self.yvals.shape[0]):
-            print("Message from Class {:s} function checkandsetData: length of the xvals and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
-            return False
-        
-        # make sure that if error bars are not None, then they are either a list or a numpy array
-        if errorbars is not None: 
-            if not isinstance(errorbars,list) or isinstance(errorbars,np.ndarray):
-                print("Message from Class {:s} function checkandsetData: errorbars, if given, must be either a list or a numpy array. Initialize it again with the correct input.".format(self.__class__.__name__))
-                return False
-        
-        # make sure that error bars are correctly formatted, have the correct length, etc 
-        if errorbars is None:
-            self.areErrorbarsGiven = False
-            self.errorbars = np.ones(self.xvals.shape,dtype=float)
-        elif isinstance(errorbars,list):
-            self.errorbars = np.array(errorbars)
-            self.areErrorbarsGiven = True
-        elif isinstance(errorbars,np.ndarray):
-            self.errorbars = errorbars
-            self.areErrorbarsGiven = True
-        else:
-            print("Message from Class {:s} function checkandsetData: errorbars must be either a list or a numpy, or do not input anything. Initialize it again with the correct input.".format(self.__class__.__name__))
-            return False
-
-        if (self.errorbars.shape[0] != self.xvals.shape[0]):
-            print("Message from Class {:s} function checkandsetData: length of the errorbars and xvals and yvals arrays must be the same. Initialize it again with the correct input".format(self.__class__.__name__))
-            return False
-
-        self.sortDataByXaxis()  # now the x-axis is sorted!
-
-        # fill the arrays with the original values so that they do not get lost if we try to crop, then crop again
-        # with different limits, for example. In general, we may want, after some faulty operation,
-        # get back to the original array. This is where that array is stored
-        # NOTE! we need to make copies, otherwise the array will be modified in subsequent functions. This is a
-        # general property of Python arrays (also Numpy)
-        self.xvals_orig = self.xvals.copy()
-        self.yvals_orig = self.yvals.copy()
-        self.errorbars_orig = self.errorbars.copy()
-        return True # if we got to this point, there is no error, so we can return True
-
-    def sortDataByXaxis(self):
-        """
-        Sorts data by the indices of the x-axis, so that basically x[0] is the leftmost coordinate value, and x[-1] is the rightmost coordinate value
-        """
-        xaxis_indices = np.argsort(self.xvals)
-        self.xvals = self.xvals[xaxis_indices]
-        self.yvals = self.yvals[xaxis_indices]
-        self.errorbars = self.errorbars[xaxis_indices]
-
-    def do_cropping(self,xmin=None,xmax=None):
-        if xmin is None:
-            xmin = -1e+100 # that's a random very small number
-        if xmax is None:
-            xmin = 1e+100  # that's a random very large number
-        if self.are_correct_data_loaded is True:
-            crop_x_mask = (self.xvals_orig > xmin) & (self.xvals_orig < xmax)
-            # make copies in order to always keep the old one available if necessary
-            self.xvals = self.xvals_orig[crop_x_mask].copy()
-            self.yvals = self.yvals_orig[crop_x_mask].copy()
-            self.errorbars = self.errorbars_orig[crop_x_mask].copy()
-        else:
-            print("Message from Class {} function cropdata: cropping failed according to your x-limits. Check out the limits given".format(
-                self.__class__.__name__))
 
 
