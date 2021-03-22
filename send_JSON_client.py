@@ -93,20 +93,21 @@ mymessagedict4 = {"jsonrpc":"2.0",
 mymethod5 = "doFit"
 myparams5 = {"fitFunction":"sinewave",
              "curveNumber": 1,
-             "startingParameters":{"frequency":1/0.8e-5,
+             "startingParameters":{"frequency":1/6e-6,
                                    "amplitude":0.5,
                                    "phase":0,
                                    "verticaloffset":0.5},
-             "fitMethod":"differential_evolution",
+             "fitMethod":"dual_annealing",
              #"fitterOptions":{"method":"trust-constr"},
              "performFitting":"",
 
-        "startingParametersLimits":{"frequency":[1/0.3e-5,1/2e-5],
+        "startingParametersLimits":{"frequency":[1/1e-5,1/1e-6],
                                    "amplitude":[0.3, 0.7],
                                    "phase":[-np.pi,np.pi],
                                    "verticaloffset":[0.4,0.6]},
         "cropLimits":["-inf","inf"],
-        "fitterOptions":{"mutation":0.9}
+        #"fitterOptions":{"mutation":0.9},
+        "monteCarloRuns":{"frequency":2}
         }
 mymessagedict5 = {"jsonrpc":"2.0", 
                  "method":mymethod5,
@@ -141,8 +142,8 @@ mymessagedict7 = {"jsonrpc":"2.0",
 #                 "params":myparams9,
 #                 "id":1}
 
-path = "C:/Users/Oleksiy/Documents/UniMainz/PhononFit/testdata/Lorentziandata/27"
-datalist = generate_experimental_datalist(path, 2)
+path = "C:/Users/Oleksiy/Documents/UniMainz/PhononFit/testdata/Sinedata/201216/00"
+datalist = generate_experimental_datalist(path, 12)
 datapts = [{"curveNumber":1,"xval":x[0],
                             "yval":x[1],"yerr":x[2]} for x in datalist]
 mymethod9 = "addData"
@@ -185,7 +186,7 @@ mymessagedict11 = {"jsonrpc":"2.0",
                  "id":1}
 
 
-r1 = json.dumps(mymessagedict11)
+r1 = json.dumps(mymessagedict5)
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 

@@ -55,6 +55,7 @@ class JSONread():
         "cropLimits",
         "fitMethod",
         "fitterOptions",
+        "monteCarloRuns",
         "performFitting"]
 
     # options to put as params keys for getFitResult method
@@ -207,6 +208,9 @@ class JSONread():
         JSON string which do not match any known parameters
         
         Note! This does not check params in the exact sequence as defined in addData_message_keys
+        
+        The first element in the output tuple (so the name of the function to call) 
+        is "plot_single_datapoint"
         """
         params_dict = messagedict["params"] # the input that came via JSON
         #output = [] # The output list of tuples that will be returned

@@ -12,10 +12,11 @@ with string versions of their names, and then getattr() and so on
 import numpy as np
 import math
 import mathfunctions.fitmodels as fitmodels
+import itertools
 
 class Fitmodel:
 
-    MAX_ERROR_RESOLUTION = 1e20 # 1 over that is the smallest error bar that is considered physical, if it's less, it's considered 0 and so unphysical
+    MAX_ERROR_RESOLUTION = 1e20 # 1 over this is the smallest error bar that is considered physical, if it's less, it's considered 0 and so unphysical
     def __init__(self,fitfunction_name = "",
                  #fitfunction_number = -1, #Not quite sure what this is
                  x_axis_vals = [],
@@ -29,6 +30,8 @@ class Fitmodel:
         self.errorbars_orig = errorbars_data
         self.are_errorbars_correct = True
         self.are_errorbars_given = False
+        self.monte_carlo_inputs = {}
+        self.monte_carlo_startparams = []
 
         # this gets automatically loaded in order to make it available
         self.start_paramdict = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
@@ -86,7 +89,7 @@ class Fitmodel:
             else:
                 self.errorbars_orig = np.array(self.errorbars_orig)
                 #TODELETE
-                print(np.any(self.errorbars_orig <= np.abs(self.errorbars_orig)/self.MAX_ERROR_RESOLUTION))
+                #print(np.any(self.errorbars_orig <= np.abs(self.errorbars_orig)/self.MAX_ERROR_RESOLUTION))
                 if np.any(self.errorbars_orig <= np.abs(self.errorbars_orig)/self.MAX_ERROR_RESOLUTION): # this means that at least one of the errors is 0
                     #TODELETE
                     print("from fitmodelclass preprocess_data: we detected at least one zero errorbar")
@@ -157,7 +160,11 @@ class Fitmodel:
         self.errorbars[(self.errorbars < (mean_errorbars - stddev_errorbars)) | (self.errorbars < 1e-10)] = mean_errorbars
 
 
-    def do_prefit(self) -> bool: #TODO! NOT done yet
+    def do_prefit(self) -> bool: 
+        """
+        self.start_paramdict and self.start_bounds_paramdict are filled in here 
+        And if it's all correct, the function returns True, otherwise False
+        """
 
         if (self.xvals is None) or (self.yvals is None) or (self.errorbars is None):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "do_prefit"))
@@ -174,19 +181,49 @@ class Fitmodel:
                                                                   self.errorbars,
                                                                   self.start_paramdict,
                                                                   self.start_bounds_paramdict)
-        # TODELETE
-        print(
-            """
-            Message from fitmodelclass do_prefit. 
-            Here are the starting parameters: {} \n
-            Here are the starting parameters bounds: {}
-            """.format(self.start_paramdict,self.start_bounds_paramdict)
-        )
+        
         if is_prefit_successful:
             return True
         else:
             return False
+            
+    def fill_in_montecarlo_startparams(self) -> bool:
+        if not self.monte_carlo_inputs: # this means that there are no Monte Carlo startparams to consider
+            return True
+            
+        single_param_dict = {}
+        # First we fill in uniformly sampled values for each parameter
+        # Number of samples is given by the values in the Monte Carlo inputs dictionary
+        for (key,value) in self.monte_carlo_inputs.items(): # remember that self.monte_carlo_inputs gives the parameter names to vary and how many random points to take of each
+            fitlimits = self.start_bounds_paramdict[key]
+            #TODELETE
+            #print("Monte Carlo routine. Requested parameter: {}, limits for this parameter: {}".format(key,fitlimits))
+            # we will now fill in the temporary ditionary with the lists of random values for each requested parameter
+            single_param_dict[key] = [np.random.uniform(*fitlimits) for q in range(value)]
+            
+        # whichever parameters are not fed into the Monte Carlo, we assume that they will have the values 
+        # corresponding to the start_paramdict value
+        for otherkey in self.start_paramdict.keys():
+            if otherkey not in single_param_dict.keys():
+                single_param_dict[otherkey] = [self.start_paramdict[otherkey]]
+        # TODELETE
+        #print("Monte Carlo routine. Printing the dict with requested parameter lists for Monte Carlo: {}".format(single_param_dict))
 
+        mcdict = {}
+        result_combos = list(itertools.product(*single_param_dict.values()))
+        #TODELETE
+        #print("Monte Carlo combos: {}".format(result_combos))
+        for combo in result_combos:
+            # we fill in the dictionary with one particular set of initial parameters, based on a given combo
+            for (idx,key) in enumerate(single_param_dict.keys()):
+                mcdict[key] = combo[idx]
+            # now we append it to the list of dictionaries that will be used in fitting
+            self.monte_carlo_startparams.append(mcdict.copy()) # Important to copy, otherwise it's only a reference
+        #TODELETE
+        #print("Monte Carlo startparamsdicts: {}".format(self.monte_carlo_startparams))
+        return True
+    
+    
     def _check_start_paramdict_isfull(self) -> bool:
         """
         Check if the starting parameters have been fully filled. If so, we will

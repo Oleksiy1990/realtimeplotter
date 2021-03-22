@@ -1,7 +1,7 @@
 # Ignore the files related to VIM internals
-*.un~
+*~
 *.swp
-*.py~
+
 
 # Ignore generated files from LaTeX
 manual/**
@@ -16,8 +16,7 @@ manual/**
 *.plt
 
 # Ignore the pycache and spyder stuff
-*__pycache__/**
-mathfunctions/__pycache__/**
+__pycache__/
 .spyproject/**
 
 # Ignore the pycharm files

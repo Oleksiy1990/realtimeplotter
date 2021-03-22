@@ -51,7 +51,7 @@ class GeneralFitter1D:
     # TODO Get this to work in order to use different possible fitting routines
     def setup_fit(self) -> bool:
         """
-
+        TODO: comments here
 
         """
         # Note: self.fitmodel_input is the instance of class Fitmodel that we use here
@@ -72,36 +72,19 @@ class GeneralFitter1D:
         is_prefit_good = self.fitmodel_input.do_prefit()
         if is_prefit_good is True:
             self.is_setup_fit_successful = True
+            self.fitmodel_input.fill_in_montecarlo_startparams() # If there is no input for Monte Carlo, this will do nothing
+            
             # Defaults: opt_method is "least-squares" and dict_to_optimizer = {}
             #self.opt_method_string_name = opt_method
             #self.dict_to_optimizer = dict_to_optimizer
             return True
         else:
             return False
-
-
-    def do_fit(self) -> bool:
-        self.fitmodel_input.is_fit_done = False # if we call the fitter, that means that we want a new result, so we should invalidate the old one
-        self.fitmodel_input.is_fit_successful = False
-
-        if self.is_setup_fit_successful is False:
-            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "do_fit"))
-            print("Function setup_fit returned False. Check out what's going on there. Fitting impossible")
-            return False
-
-        # TODELETE:
-        print("""From fitterclass do_fit: 
-            Here are the start params {}
-            and here are the start param bounds {}
-            """.format(self.fitmodel_input.start_paramdict,self.fitmodel_input.start_bounds_paramdict))
-        # First we generate the lists of bounds to send to the optimizers
-        lowerbounds_list = [self.fitmodel_input.start_bounds_paramdict[key][0] for key \
-                            in self.fitmodel_input.start_bounds_paramdict]
-        upperbounds_list = [self.fitmodel_input.start_bounds_paramdict[key][1] for key \
-                            in self.fitmodel_input.start_bounds_paramdict]
-        # this one is for optimizers other than least_squares
-        bounds_not_least_squares = sopt.Bounds(lowerbounds_list, upperbounds_list)
-
+            
+    def _helper_run_appropriate_fitter(self,lowerbounds_list: list,
+                                       upperbounds_list: list,
+                                       bounds_not_least_squares: sopt.Bounds): 
+                
         if self.fitmodel_input.minimization_method_str == "least_squares":
             fit_function_callable = getattr(fitmodels,self.fitmodel_input.fitfunction_name_string)
             optimization_output = sopt.least_squares(fit_function_callable,
@@ -111,6 +94,7 @@ class GeneralFitter1D:
                                                             self.fitmodel_input.errorbars),
                                                       bounds=(lowerbounds_list, upperbounds_list),
                                                       loss="linear", f_scale=1)
+            return optimization_output
         elif self.fitmodel_input.minimization_method_str == "minimize":
             fit_function_callable = getattr(fitmodels,self.fitmodel_input.fitfunction_name_string)
             optimization_output = sopt.minimize(sum_squares_decorator(fit_function_callable),
@@ -120,6 +104,7 @@ class GeneralFitter1D:
                                                       self.fitmodel_input.errorbars),
                                                 bounds=bounds_not_least_squares,
                                                 **self.fitmodel_input.fitter_options_dict)
+            return optimization_output
         elif self.fitmodel_input.minimization_method_str == "basinhopping":
             fit_function_callable = getattr(fitmodels, self.fitmodel_input.fitfunction_name_string)
             optimization_output = sopt.basinhopping(
@@ -133,6 +118,7 @@ class GeneralFitter1D:
             # The next lines is just for now the weirdness of basinhopping, it doesn't
             # have the global attribute called success
             setattr(optimization_output,"success",optimization_output.lowest_optimization_result.success)
+            return optimization_output
         elif self.fitmodel_input.minimization_method_str == "differential_evolution":
             fit_function_callable = getattr(fitmodels, self.fitmodel_input.fitfunction_name_string)
             optimization_output = sopt.differential_evolution(
@@ -142,6 +128,7 @@ class GeneralFitter1D:
                       self.fitmodel_input.yvals,
                       self.fitmodel_input.errorbars),
             **self.fitmodel_input.fitter_options_dict)
+            return optimization_output
         elif self.fitmodel_input.minimization_method_str == "shgo":
             fit_function_callable = getattr(fitmodels, self.fitmodel_input.fitfunction_name_string)
             optimization_output = sopt.shgo(
@@ -151,6 +138,7 @@ class GeneralFitter1D:
                       self.fitmodel_input.yvals,
                       self.fitmodel_input.errorbars),
             **self.fitmodel_input.fitter_options_dict)
+            return optimization_output
         elif self.fitmodel_input.minimization_method_str == "dual_annealing":
             fit_function_callable = getattr(fitmodels, self.fitmodel_input.fitfunction_name_string)
             optimization_output = sopt.dual_annealing(
@@ -160,17 +148,74 @@ class GeneralFitter1D:
                       self.fitmodel_input.yvals,
                       self.fitmodel_input.errorbars),
             **self.fitmodel_input.fitter_options_dict)
+            return optimization_output
         else:
             print(
-                """Message from Class {:s} function doFit: 
+                """Message from Class {:s} function _helper_run_appropriate_fitter: 
                 you tried to use the following optimizer: {}. 
                 This optimizer does not exist. Not doing any optimization""".format(
                     self.__class__.__name__, self.fitmodel_input.minimization_method_str))
-            return False
+            return None
 
-        # since we have done the fit here, regardless of successful or not,
-        # we should set this one to True
-        self.fitmodel_input.is_fit_done = True
+    def do_fit(self) -> bool:
+        self.fitmodel_input.is_fit_done = False # if we call the fitter, that means that we want a new result, so we should invalidate the old one
+        self.fitmodel_input.is_fit_successful = False
+
+        if self.is_setup_fit_successful is False:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "do_fit"))
+            print("Function setup_fit returned False. Check out what's going on there. Fitting impossible")
+            return False
+        
+        # First we generate the lists of bounds to send to the optimizers
+        lowerbounds_list = [self.fitmodel_input.start_bounds_paramdict[key][0] for key \
+                            in self.fitmodel_input.start_bounds_paramdict]
+        upperbounds_list = [self.fitmodel_input.start_bounds_paramdict[key][1] for key \
+                            in self.fitmodel_input.start_bounds_paramdict]
+        # this one is for optimizers other than least_squares
+        bounds_not_least_squares = sopt.Bounds(lowerbounds_list, upperbounds_list)
+
+
+        opt_output_list = []
+        opt_output_trial = self._helper_run_appropriate_fitter(lowerbounds_list,
+                                       upperbounds_list,
+                                       bounds_not_least_squares)
+                                       
+        if self.fitmodel_input.monte_carlo_inputs: # this only runs if Monte Carlo is requested
+            print("Monte Carlo fitting runs requested: {:d}".format(len(self.fitmodel_input.monte_carlo_startparams)))
+            opt_output_list.append(opt_output_trial)
+            idx_mc = 1
+            for startparamdict_mc in self.fitmodel_input.monte_carlo_startparams:
+                print("Current Monte Carlo iteration: {:d} out of {:d}".format(idx_mc,len(self.fitmodel_input.monte_carlo_startparams)))
+                self.fitmodel_input.start_paramdict = startparamdict_mc
+                opt_output_trial = self._helper_run_appropriate_fitter(lowerbounds_list,
+                                       upperbounds_list,
+                                       bounds_not_least_squares)
+                opt_output_list.append(opt_output_trial)
+                idx_mc += 1
+                
+            self.fitmodel_input.is_fit_done = True
+            # Now we get rid of all failed fits    
+            for entry in opt_output_list:
+                if entry is None:
+                    opt_output_list.remove(entry)
+                if entry.success is False:
+                    opt_output_list.remove(entry)
+            # now we work with this optimization output list
+            if len(opt_output_list) < 1: 
+                print("Message from Class {:s} function doFit.".format(
+                self.__class__.__name__))
+                print("No result left in the list of fits after Monte Carlo. Either some error occurred or none of the fits converged") 
+                self.fitmodel_input.is_fit_successful = False
+                return True # we stop the function here, fit is not successful
+            else:
+                costfunction_list = np.array([opt_output_list[q].fun for q in range(len(opt_output_list))])
+                #TODELETE
+                print("Costfunction list: {}".format(costfunction_list))
+                min_cost_position = np.argmin(costfunction_list)
+                optimization_output = opt_output_list[min_cost_position]
+        else:
+            optimization_output = opt_output_trial
+            self.fitmodel_input.is_fit_done = True
 
         if optimization_output.success is True:
             self.fitmodel_input.is_fit_successful = True

@@ -141,6 +141,8 @@ We list the parameters with an explanation of the possible values (the parameter
 \textbf{Case 1: ``method'' is ``doClear''}
 \begin{itemize}
 \item ``clearData'' : ``all'' (This clears everything, so data, fits, axis labels, etc. )
+\item ``clearData'': <int> (This clears the curve, data and corresponding fit if available, specified by the integer)
+\item ``clearConfig'': ``all'' (This clears the axis labels and the title)
 
 For later implementation: clearing individual curves, clearing individual labels, etc.
 \end{itemize}
@@ -160,7 +162,7 @@ For later implementation: clearing individual curves, clearing individual labels
 
 The dictionary that goes with the dataPoint have the form
 
-{\fontspec{sourcecodepro} \{ {''}curveNumber{''}:<integer>, {''}xval{''}:<float>, {''}yval{''}:<float>, {''}yerr{''}:<float>, {''}xerr{''}:<float> \}}, 
+{\fontspec{sourcecodepro} \{ {''}curveNumber{''}:<integer>, {''}xval{''}:<float,int>, {''}yval{''}:<float,int>, {''}yerr{''}:<float,int>, {''}xerr{''}:<float,int> \}}, 
 
 and in this case the options ``xerr'' and ``yerr'' are not required, they are optional. This will 
 add a single data point to the curve that has been specified.
@@ -180,40 +182,56 @@ so it's formatted as a standard Python list.
 This will simply multiple points (to different curves) 
 in the same round of JSON-RPC2.0 communication. 
 
+Notice that this list is parsed directly in the JSONinterpreter.py, so the main program gets directly a list of commands corresponding to ``dataPoint''. 
+
 \end{itemize}
 
 (this can be modified for adding points to curves, but the logic of it being a dictionary will stay the same)
 
 \textbf{Case 4: ``method'' is ``doFit''}
 \begin{itemize}
-\item ``startParams'' : <dictionary>
+\item ``fitFunction'': <str> (Name of the fitting function to be used in case ``performFitting'' is called afterwards. This name must be defined in fitmodels.py)
+
+\item ``curveNumber'': <int> (The curve that will be processed in this particular call iteration of doFit routines)
+
+\item ``startingParameters'' : <dictionary>
 
 This dictionary must come in the form 
 
 {\fontspec{sourcecodepro} \{ {''}frequency{''}:<float>, {''}center{''}:<float>,...\}}, so these will be the names
 of the variables are they are defined in the fit model. This depends of course on what one wants to fit, Gaussian, sinusoidal, Lorentzian, etc.
 
-\item ``startParamsLimits'' : <dictionary> (This is optional, this will tell the fitter the limits of paramter search. For simple fits, 
-	one can leave this to fitting algorithm defaults) 
+Whatever parameters from the fit model are not specified will be handled 
+by the automatic parameter estimation routine (which, OK, could be good or bad). This parameter is in principle optional, so one can not specify it at all, in which case all starting parameters will be handled by the automatic initial parameter estimation routine.
+
+\item ``startingParametersLimits'' : <dictionary> (This is optional, this will tell the fitter the limits of parameter search. If one doesn't provide this, they will be determined by the automatic estimation routines) 
 
 {\fontspec{sourcecodepro} \{ {''}frequency{''}:<list>(<float>,<float>), {''}center{''}:list(<float>,<float>),...\}}, 
 one must of course use the same names for fit parameters, but then after the colon one must provide the lower and upper limit for each fit parameter. 
 It is not required to provide the limits for each parameter, however if one does provide limits, one must provide both lower and upper limits. 
-One cannot simply leave one limit empty.
+One \textbf{cannot} simply leave one limit empty.
 
-\item ``cropLimits'' : <list(<float, -inf>,<float,inf>)> (This will crop the data before sending it to the fitter. 
+\item ``cropLimits'' : <list(<float or int, -inf>,<float or int,inf>)> (This will crop the data before sending it to the fitter. 
 This item is optional, if not provided, all data for the given curve will be used.
 If one wants a one-sided limit, then the other side must be specified as -inf or inf)
 
-\item ``curveNumber'' : <integer> (This just tells which curve we are supposed to fit)
+\item ``fitMethod'' : <str> (This is the name of the fit method from the scipy.optimize library. Currently we have ``minimize'', ``least_squares'', ``basinhopping'', ``differential_evolution'', ``shgo'', ``dual_annealing''. Brute force is not implemented)
 
-\item ``fitMethod'' : <dictionary> (This is not yet implemented, but this will give access to the different possibilities of scipy optimizer routines)
+If not provided, it will default to ``least_squares''.
+
+\item ``fitterOptions'': <dict> (The dictionary is passed directly to the scipy.optimize method. The function will not check if the given keyword arguments make sense for the optimization algorithm, that is up to the user)
+
+\item ``monteCarloRuns'' : <dict> (The key-value pairs in this dictionary have to be of the form ``string'':<int>, where the string is exactly the name of the parameter for which the tried have to be done between the min and max parameter bounds values, and int refers to how many random points have to be taken)
+
+\item ``performFitting'': <str> (This parameter asks the program to do the fit. The value must be an empty string, ``'', and it is ignored. It is only there for consistency with all other parameters)
 
 \end{itemize}
 
 \textbf{Important note:} All string on the left of the colon (so things like ``clearData'', ``axisLabels'', ``plotTitle'', so on, must consist of a word starting with a lowercase letter, followed by one or more words starting with an uppercase letter, without spaces, so a possible dictionary to go with params could have the form like {\fontspec{sourcecodepro} \{ {''}firstSecond{''}: <any> \}}. This is crucial. Inside the program, it does string parsing by detecting the locations of the capital letters, and then it calls the corresponding functions, which have exactly the same name but with no capital letter and with an underscore separator. So the function called when parameter ``firstSecond'' will be called ``first\_second''. See Section~\ref{basicprinciples} for a more detailed explanation of the structure.  
 
 \textbf{Case 5: ``method'' is ``getFitResult''}
+
+!!! Manual not finished yet in this part
 
 \begin{itemize}
 \item ``curveNumber'' : <integer> (This will simply return the fit result for the chosen curve)

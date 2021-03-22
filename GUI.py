@@ -561,7 +561,32 @@ class MainWindow(QtGui.QMainWindow):
     #def generate_plot_pointbypoint(self,datapoint): # this is the old name for the plotting function
     def plot_single_datapoint(self,plot_single_datapoint_arg: dict) -> bool:
         """
+        Plots a data point as it comes in from the client
+        
+        This function is for real-time plotting of data points, 
+        just as they come in through TCP/IP.
+        This is called directly from the signal-slot mechanism, and the function in 
+        JSONinterpreter.py that calls it is __parse_addData_message()
+                
+        Parameters
+        ----------
+        plot_single_datapoint_arg: dict
+            Required key-value pairs for each plot_single_datapoint_arg: 
+                "curvenumber":int (integer defining to which curve we will add the incoming point) 
+                "xval":float,int (the x-coordinate of the incoming point)
+                "yval":float,int (the y-coordinate of the incoming point)
+            Optional key-value pairs for each plot_single_datapoint_arg: 
+                "xerr":float,int (the horizontal error bar for the incoming point)
+                "yerr":float,int (the vertical error bar for the incoming point)
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
         """
+        
         # =============== Data format check ================================
         # We first have to check if the data format for this data point dictionary is correct
         # if it is not, we don't plot anything
@@ -665,6 +690,26 @@ class MainWindow(QtGui.QMainWindow):
             getattr(self, self.legend_item_name).clear()
 
     def clear_data(self,clear_data_arg: Union[int,str]) -> bool:
+        """
+        Remove a particular unit of data from memory
+        
+        Clears whatever curve is asked, meaning the original data, fits. It also runs _register_available_curves
+        at the end so as to make sure that the remaining curves are correctly registered and available for 
+        further processing 
+        
+        Parameters
+        ----------
+        clear_data_arg: int, str
+            If str, it must be "all", which will clear all curves
+            If int, it's the curve number that one wants to clear
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
         if not isinstance(clear_data_arg, (int,str)):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_data"))
             print("You supplied something other than an integer or string as the function argument. Not doing anything \n")
@@ -689,6 +734,23 @@ class MainWindow(QtGui.QMainWindow):
         return True
 
     def clear_config(self,clear_config_arg: str) -> bool:
+        """
+        Removes plot configurations
+        
+        Parameters
+        ----------
+        clear_config_arg: str
+            If str is "all", it will clear the axis labels and the plot title
+            
+            In the future, the goal is to implement clearing axis labels and title separately
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
         if not isinstance(clear_config_arg, str):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_config"))
             print("You supplied something other than a string as the function argument. Not doing anything \n")
@@ -698,8 +760,27 @@ class MainWindow(QtGui.QMainWindow):
             self.graphWidget.setLabel('left',text="")
             self.graphWidget.setTitle(title="")
             return True
-
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_config"))
+            print("You supplied the string argument that is different from all. This is not yet implemented. Not doing anything \n")
+            return False
+            
     def set_axis_labels(self,axis_labels_arg: List[str]) -> bool:
+        """
+        Puts x-axis label (below) and y-axis label (left)
+        
+        Parameters
+        ----------
+        axis_labels_arg: list of two strings
+            The first string is the a-axis label, the second string is the y-axis label
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
         if len(axis_labels_arg) != 2:
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_axis_labels"))
             print("You supplied something other than 2 arguments to this function. This is not allowed, you must supply a list of exactly 2 strings, for x-label and y-label. Not doing anything")
@@ -713,6 +794,20 @@ class MainWindow(QtGui.QMainWindow):
             return False
 
     def set_plot_title(self,plot_title_arg: str) -> bool:
+        """
+        Sets the plot title (above)
+        
+        Parameters
+        ----------
+        plot_title_arg: str
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
         if isinstance(plot_title_arg,str):
             self.graphWidget.setTitle(title=plot_title_arg)
             return True
@@ -722,6 +817,24 @@ class MainWindow(QtGui.QMainWindow):
             return False
     
     def set_plot_legend(self,set_plot_legend_arg: dict) -> bool:
+        """
+        Sets up the legend with the labels that the curves will have when they are plotted
+        
+        Parameters
+        ----------
+        plot_legend_arg: dict
+            For each entry: 
+            key: "curve0" or "curve1", or etc. (so the word "curve" with the number 
+                the curve given as a string)
+            value: str which represents whatever has to be put on the legend for this curve 
+                This can be anything, as long as it is a string
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
         if isinstance(set_plot_legend_arg,dict):
             # the case that our plot legend parameter is a dictionary, as expected
             if all([isinstance(key,str) for key in set_plot_legend_arg]):
@@ -747,6 +860,22 @@ class MainWindow(QtGui.QMainWindow):
             return False
 
     def set_fit_function(self,fit_function_name: str) -> bool:
+        """
+        Sets the fit function to use in case fitting is called, based on its string name. 
+        The fit function must be defined in fitmodels.py
+                
+        Parameters
+        ----------
+        fit_function_name: str
+            For example it could be "gaussian" or "sinewave", etc. 
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
         if isinstance(fit_function_name,str):
             if fit_function_name in self.DEFINED_FITFUNCTIONS:
                 self.FitFunctionChoice.setCurrentText(fit_function_name)
@@ -765,15 +894,27 @@ class MainWindow(QtGui.QMainWindow):
 
     def set_curve_number(self,curvenumber_arg: int) -> bool:
         """
-        The goal of this function is to check if the corresponding
-        curve number exists, and if it does, then it will 
-        make an instance of Fitmodel class and fill in x values, 
-        y values, and possibly the error bar values in that instance
-
-        If something is wrong, it will not do this, and then eventually 
-        We will get an error message because the fitter will have no data
-        so it will not be able to fit
+        Sets the curve number to be used in this particular iteration of doFit. 
+        This will then determine the curve which is fitted, and consequently for which 
+        the fit parameters will be given, also possibly cropping, etc. 
+                
+        Parameters
+        ----------
+        curvenumber_arg: int
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
         """
+        
+        # The goal of this function is to check if the corresponding
+        # curve number exists, and if it does, then it will 
+        # make an instance of Fitmodel class and fill in x values, 
+        # y values, and possibly the error bar values in that instance
+
 
         # First, we check if the curve number is sensible
         if not isinstance(curvenumber_arg,int):
@@ -802,6 +943,28 @@ class MainWindow(QtGui.QMainWindow):
         return True
 
     def set_starting_parameters(self,supplied_startparams_dict: dict) -> bool:
+        """
+        Sets the starting parameters for the fitter to be called in this iteration of doFit.  
+                
+        Parameters
+        ----------
+        supplied_startparams_dict: dict
+            The key:value pairs are always in the form str:float,int where the key 
+            is exactly the string name of the parameter defined in the fitting function 
+            in fitmodels.py, and the value is the number giving the starting values of that 
+            parameter for the fitter.
+            
+            Whatever parameters from the fit model are not specified will be handled 
+            by the automatic parameter estimation routine (which, OK, could be good or bad)
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
+    
         # Check if the supplied starting parameters is a dictionary
         if not isinstance(supplied_startparams_dict, dict):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters"))
@@ -825,6 +988,28 @@ class MainWindow(QtGui.QMainWindow):
         return True
    
     def set_starting_parameters_limits(self, supplied_startparams_lim_dict: dict) -> bool:
+        """
+        Sets the limits on teh starting parameters for the fitter to be 
+        called in this iteration of doFit.  
+                
+        Parameters
+        ----------
+        supplied_startparams_lim_dict: dict
+            The key:value pairs are always in the form str:list where the key 
+            is exactly the string name of the parameter defined in the fitting function 
+            in fitmodels.py, and the value is a list of two either numbers (can be float
+            or integer)
+            
+            Whatever limits are not specified will be filled in by the automatic estimation 
+            routine
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
         # check if all startparam limits are dictionaries
         if not isinstance(supplied_startparams_lim_dict, dict):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_starting_parameters_limits"))
@@ -859,7 +1044,30 @@ class MainWindow(QtGui.QMainWindow):
         return True
 
 
-    def set_crop_limits(self,croplimits_arg: list) -> bool: # this sets the crop tuple for cropping the x-axis before data fitting
+    def set_crop_limits(self,croplimits_arg: list) -> bool: 
+        """
+        Sets the crop tuple that will be used as limits for fitting. Remember that this
+        will not remove the points from the plot! This will only make sure that the 
+        points beyond the cropping region are not counted in the fit
+                
+        Parameters
+        ----------
+        croplimits_arg: list
+            The list of two values (numbers, so int or float). Remember to always specify two values. 
+            The left one must be smaller than the right one. Also, one can specify -inf or inf for the 
+            left and right limit respectively in order to basically not cut off any data for sure. 
+            
+            This entry is optional, if one doesn't give it, all data for a give curve 
+            are used
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
+
         # make sure that croplimits is a list
         if not isinstance(croplimits_arg, list):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_crop_limits"))
@@ -888,11 +1096,38 @@ class MainWindow(QtGui.QMainWindow):
     
     def set_fit_method(self,fitmethod_arg: str) -> bool:
         """
-        NOTE: Important
+        Sets the minimization method from scipy.optimize library that will be used for fitting. 
+        
+        
+        Refer to the documentation of scipy.optimize for details. Have a look also in fitterclass.py
+        to see what exactly has been implemented at any given time, because this data is used in 
+        the do_fit() method of GeneralFitter1D class
+        
         This function does not check whether the supplied fit (minimization)
         method actually exists in scipy.optimize! It's up to the user 
         to make sure to not supply nonsense fit methods, or to check 
         this further downstream in fitting
+                
+        Parameters
+        ----------
+        fitmethod_arg: str
+            The name of the fitting method to use. It wraps the scipy.optimize methods 
+            Currently we have "minimize", "least_squares", "basinhopping", "differential_evolution", 
+            "shgo", "dual_annealing". "brute_force" is not implemented            
+            
+            If not given, it will default to "least_squares"
+            
+            This function does not check whether the supplied fit (minimization)
+            method actually exists in scipy.optimize! It's up to the user 
+            to make sure to not supply nonsense fit methods, or to check 
+            this further downstream in fitting
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
         """
         # we check that the fit method is actually a string
         if not isinstance(fitmethod_arg, str):
@@ -904,14 +1139,27 @@ class MainWindow(QtGui.QMainWindow):
         getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).minimization_method_str = fitmethod_arg
         return True
 
-    def set_fitter_options(self,fitteroptions_arg: dict) -> bool: 
+    def set_fitter_options(self,fitteroptions_arg: dict) -> bool:      
         """
-        NOTE: Important
-        This function does not check if the options you supplied make
-        sense for the fitter that you are choosing! 
-        You have to either make sure to supply the correct options 
-        or maybe check it downstream in the fitter itself
+        Feeds the options (as keyword arguments) to scipy.optimize algorithm
+        
+        Refer to the documentation of scipy.optimize for details. Note that this program does not check 
+        whether these options actually make sense for the given scipy.optimize algorithm, it's 
+        up to the user to check that out
+                        
+        Parameters
+        ----------
+        fitteroptions_arg: dict
+            The dictionary is passed directly to the scipy.optimize method as keyword arguments. 
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
         """
+        
         # we check that the fit method is actually a dictionary
         if not isinstance(fitteroptions_arg, dict):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_fitter_options"))
@@ -921,16 +1169,66 @@ class MainWindow(QtGui.QMainWindow):
         current_curve_number = int(self.PlotNumberChoice.currentText())
         getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).fitter_options_dict = fitteroptions_arg
         return True
+        
+    def set_monte_carlo_runs(self,montecarloruns_dict_arg: dict) -> bool:
+        """
+        This sets up the self.monte_carlo_inputs dictionary for the fitmodel 
+        and it has to be then 
+        processed with GeneralFitter1D, I think
+        """
+        # make sure that montecarloruns_dict_arg is a dict
+        if not isinstance(montecarloruns_dict_arg, dict):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_monte_carlo_runs"))
+            print("You put something other than a dict to specify Monte Carlo runs. This is not allowed, not doing any Monte Carlo in fitting")
+            return False
+        
+        current_curve_number = int(self.PlotNumberChoice.currentText())                
+        start_paramdict_fitmodel = getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).start_paramdict
+        
+        for suppliedkey in montecarloruns_dict_arg.keys():
+            # check if the parameters supplied for Monte Carlo fitting correspond to the parameter names for the fit model
+            # If not, ignore those parameters
+            if suppliedkey not in start_paramdict_fitmodel.keys():
+                print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "set_monte_carlo_runs"))
+                print("The parameter name {} that you supplied is not among the parameter names for this fitmodel. Ignoring this parameter".format(suppliedkey))
+                continue
+            # check if for each parameter, the number of Monte Carlo runs is an integer
+            if not isinstance(montecarloruns_dict_arg[suppliedkey], int):
+                print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "set_monte_carlo_runs"))
+                print("For parameter {} in Monte Carlo, you supplied a non-integer number of runs. This is not allowed, ignoring this parameter".format(suppliedkey))
+                continue
+            # Check if for each parameter, the number of Monte Carlo runs is not less than 1 (it's meaningless to have less than 1 Monte Carlo run)
+            if montecarloruns_dict_arg[suppliedkey] < 1:
+                print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "set_monte_carlo_runs"))
+                print("For parameter {} in Monte Carlo, the number of runs you supplied is less than 1. This is not allowed, ignoring this parameter".format(suppliedkey))
+                continue
+            # If we made it to here, everything is good, and we can save the Monte Carlo setting for this fit parameter    
+            getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).monte_carlo_inputs[suppliedkey] = montecarloruns_dict_arg[suppliedkey]
+        return True
 
     # This function does the fitting
     def set_perform_fitting(self,emptystring: str) -> bool:
-       self.process_makefit_button() 
-       return True
+        """
+        Runs the fitter
+
+        Parameters
+        ----------
+        emptystring: str
+            As specified, this must be an empty string, and it is ignored. It's here
+            only for consistency with all other functions
+
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+
+        """
+        self.process_makefit_button()
+        return True
 
     def get_fit_result(self, arg_int: int) -> bool:
-        # TODELETE
-        print("From GUI.py get_fit_result: type(self.client_communication_socket) : {}".format(type(self.client_communication_socket)))
-
+        
         if not isinstance(arg_int, int):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "get_fit_result"))
             print(
@@ -997,7 +1295,7 @@ class MainWindow(QtGui.QMainWindow):
 def runPlotter(sysargs):
 
     HOST = "127.0.0.1"
-    #HOST = "134.93.212.68"
+    #HOST = "134.93.30.62"
     
     # this is the server for one-way communication, no responses
     PORT = 5757
