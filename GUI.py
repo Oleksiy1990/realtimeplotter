@@ -90,7 +90,7 @@ class TCP_IP_Worker(QtCore.QRunnable):
 class MainWindow(QtGui.QMainWindow):
 
     # These are class variables, or effetively constants for our purposes
-    DEFINED_FITFUNCTIONS = ["sinewave","damped_sinewave","gaussian"]
+    DEFINED_FITFUNCTIONS = ["sinewave","damped_sinewave","gaussian","curvepeak"]
     MAX_NUM_CURVES = 50 # This is a large upper limit on the max number of curves that
                         # can be plotted at the same time
     NUMPOINTS_CURVE_DENSE = 350
@@ -329,12 +329,16 @@ class MainWindow(QtGui.QMainWindow):
         if result_setupfit is True:
             # 3) perform the fit
             result_dofit = currentFitter.do_fit()
+            if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).result_objectivefunction == -1:
+                result_regularplot = False
+            else:
+                result_regularplot = True
         else:
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_makefit_button"))
             print("setup_fit() function from the fitter class returned False. Fitting impossible. Not doing anything \n")
             return False
 
-        if result_dofit is True:
+        if (result_dofit is True) and (result_regularplot is True):
             # 4) If the fit result is good, according to the fitter message, we want to plot it
             if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).is_fit_successful is True:
                 aXvalsDense = np.linspace(getattr(self,
@@ -410,7 +414,21 @@ class MainWindow(QtGui.QMainWindow):
                     "Curve {:d} {} : Fit failed".format(current_curve_number,
                                     self.legend_label_dict["curve{:d}".format(current_curve_number)]))
                 return True
-            #this else condition will be used if the fit result is not a success
+        elif (result_dofit is True) and (result_regularplot is False):
+            # Now let's write the results of the fitting to an output
+            #text box below the main plotting window
+            self.TextBoxForOutput.setCurrentFont(QtGui.QFont("Helvetica",
+                    pointSize=10,
+                    weight = QtGui.QFont.Bold))
+            self.TextBoxForOutput.append("Curve {:d} {} fit results:".format(current_curve_number,
+                                        self.legend_label_dict["curve{:d}".format(current_curve_number)]))
+            for (key,val) in getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).result_paramdict.items():
+                self.TextBoxForOutput.setCurrentFont(QtGui.QFont("Helvetica",
+                    pointSize=10,
+                    weight=QtGui.QFont.Normal))
+                self.TextBoxForOutput.append(key+" : "+"{}".format(val))
+            return True
+        #this else condition will be used if the fit result is not a success
         else:
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_makefit_button"))
             print("do_fit function failed in the fitter. Check other error messages")

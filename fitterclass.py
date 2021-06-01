@@ -17,11 +17,14 @@ from PyQt5 import QtGui, QtCore
 import helperfunctions
 from inspect import getfullargspec  # this is for checking out which arguments are defined in a given function
 from functools import partial
+import types
 #import fitmodels
 
 
-# TODELETE
-# import matplotlib.pyplot as plt
+# Here we define the additional fit methods that are not in scipy.optimize
+# This allows us to define basically whatever we want along the same interface
+ADDITIONAL_FITMETHODS = ["findmax","findmin" # this is for peak finding
+        ]
 
 # This is a utility function in order to get immediately sum squares for optimizers other than 
 # scipy.optimize.least_squares
@@ -64,10 +67,15 @@ class GeneralFitter1D:
 
         # check if minimization method is legal from the point of view of scipy.optimize
         if not hasattr(sopt, self.fitmodel_input.minimization_method_str):
-            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "setup_fit"))
-            print(
-                "You provided a minimization method that is not in scipy.optimize library. Not fitting anything \n")
-            return False
+            if self.fitmodel_input.minimization_method_str in ADDITIONAL_FITMETHODS:
+                # TODELETE
+                print("From Class {:s} function {:s}".format(self.__class__.__name__, "setup_fit"))
+                print("Note: your fit method is not from scipy.optimize library")
+            else:
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "setup_fit"))
+                print(
+                    "You provided a minimization method that is not in scipy.optimize library and not among your ADDITIONAL_FITMETHODS. Not fitting anything \n")
+                return False
 
         is_prefit_good = self.fitmodel_input.do_prefit()
         if is_prefit_good is True:
@@ -84,6 +92,15 @@ class GeneralFitter1D:
     def _helper_run_appropriate_fitter(self,lowerbounds_list: list,
                                        upperbounds_list: list,
                                        bounds_not_least_squares: sopt.Bounds): 
+        """
+        We start with an instance of Fitmodel class, which is saved as 
+        self.fitmodel_input
+        This instance has the necessary data to run the fit, including the appropriate 
+        fit method string name
+
+        Return: optimization output or None
+        depending on whether the fit was successful or not
+        """
                 
         if self.fitmodel_input.minimization_method_str == "least_squares":
             fit_function_callable = getattr(fitmodels,self.fitmodel_input.fitfunction_name_string)
@@ -149,6 +166,56 @@ class GeneralFitter1D:
                       self.fitmodel_input.errorbars),
             **self.fitmodel_input.fitter_options_dict)
             return optimization_output
+        elif self.fitmodel_input.minimization_method_str == "findmax":
+            # make a copy so that we can go about deleting the max value to find the next
+            # max and so on
+            peaks_xvals = []
+            peaks_yvals = []
+            data_array_copy = self.fitmodel_input.yvals.copy()
+            # find max, then replace that point with the average, find the next max 
+            # and keep going until found as many maxima as requested
+            for peak_num in range(self.fitmodel_input.start_paramdict["numpeaks"]):
+                peakval_y = np.nanmax(data_array_copy)
+                peakcoord = np.argmax(data_array_copy)
+                peakval_x = self.fitmodel_input.xvals[peakcoord]
+                peaks_xvals.append(peakval_x)
+                peaks_yvals.append(peakval_y)
+                data_array_copy[peakcoord] = np.mean(data_array_copy)
+            # we now have to build the optimization_output object that will look similar to what it looks like for regular fits
+            param_dict_length = len(self.fitmodel_input.start_paramdict)
+            optimization_output = types.SimpleNamespace() # this just initializes an empty class
+            optimization_output.fun = -1 # objective function is -1, because it has no meaning here
+            optimization_output.x = [peaks_xvals,peaks_yvals]
+            # we now add the values to the "output" which are not real fit parameters
+            # in normal fitting these are always fit parameters, but since this is a "fake" fit, we can simply add the initial parameters just to keep the interface constant
+            for (idx,key) in enumerate(self.fitmodel_input.start_paramdict):
+                if idx >= len(optimization_output.x):
+                    optimization_output.x.append(self.fitmodel_input.start_paramdict[key])
+            optimization_output.success = True
+            return optimization_output
+        elif self.fitmodel_input.minimization_method_str == "findmin":
+            # make a copy so that we can go about deleting the min value to find the next
+            # min and so on
+            peaks_output = []
+            data_array_copy = self.fitmodel_input.yvals.copy()
+            # find min, then replace that point with the average, find the next min 
+            # and keep going until found as many maxima as requested
+            for peak_num in range(self.fitmodel_input.start_paramdict["numpeaks"]):
+                peakval_y = np.nanmin(data_array_copy)
+                peakcoord = np.argmax(data_array_copy)
+                peakval_x = self.fitmodel_input.xvals[peakcoord]
+                peaks_output.append((peakval_x,peakval_y))
+                data_array_copy[peakcoord] = np.mean(data_array_copy)
+            # we now have to build the optimization_output object that will look similar to what it looks like for regular fits
+            param_dict_length = len(self.fitmodel_input.start_paramdict)
+            optimization_output = types.SimpleNamespace() # this just initializes an empty class
+            optimization_output.fun = -1 # objective function is -1, because it has no meaning here
+            optimization_output.x = [peaks_xvals,peaks_yvals]
+            for (idx,key) in enumerate(self.fitmodel_input.start_paramdict):
+                if idx >= len(optimization_output.x):
+                    optimization_output.x.append(self.fitmodel_input.start_paramdict[key])
+            optimization_output.success = True
+            return optimization_output
         else:
             print(
                 """Message from Class {:s} function _helper_run_appropriate_fitter: 
@@ -176,6 +243,8 @@ class GeneralFitter1D:
 
 
         opt_output_list = []
+
+        # Here we perform the first fit!
         opt_output_trial = self._helper_run_appropriate_fitter(lowerbounds_list,
                                        upperbounds_list,
                                        bounds_not_least_squares)

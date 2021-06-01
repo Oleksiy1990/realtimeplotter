@@ -126,7 +126,7 @@ class Fitmodel:
         # we artificially set bounds to infinity,
         # just because we want to keep it uniform
         # this produces self.xvals, self.yvals, self.errorbars
-        #self._remove_zero_errorbars()
+        #self._remove_zero_errorbars() # this was for correcting errorbars, but not in use now
 
         # check again if we didn't crop out all the data
         if len(self.xvals) < 2 or len(self.yvals) < 2:
@@ -170,6 +170,8 @@ class Fitmodel:
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "do_prefit"))
             print("Your xvals, yvals, or errorbars are not set. You probably have not preprocessed data. Not possible to do fit this way")
             return False
+
+        self._do_cropping() # this also resets the input values in case they were modified by the prefitter for example. This is relevant for things like smoothing
 
         if self._check_start_paramdict_isfull() is True:
             return True

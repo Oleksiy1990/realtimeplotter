@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.signal as spsig
+from scipy.ndimage import gaussian_filter1d
 
 
 """
@@ -321,4 +322,72 @@ def gaussian_prefit(independent_var, measured_data, errorbars,
     return True
 
 
+########################  RAP shelving, maximizing difference between two curves
+# we can feed already the difference itself as a single dataset
+def curvepeak_base(fitparams,independent_var):
+    """
+    """
+    return None
+
+def curvepeak(fitparams,independent_var,measured_data,errorbars):
+    """
+    """
+    return None
+
+def curvepeak_check(fitparams):
+    if len(fitparams) == 4:
+        return True
+    else:
+        return False
+
+def curvepeak_paramdict():
+    fitparam_dict = {"peakcoordinate":None,"peakvalue":None,"numpeaks":None,"smoothing":None, "inversion":None}
+    return fitparam_dict
+
+def curvepeak_prefit(independent_var, measured_data, errorbars, fitparam_dict, fitparam_bounds_dict) -> bool:
+    """
+    This requires the x-values, y-values, and the error bars (although error bars are not really necessary 
+    but it's just for uniformity, one can simply set them all to 1.
+
+    It also requires fitparam_dict and fitparam_bounds_dict. It will look if any values in fitparam_dict have already been set 
+    and use those params, and estimate the other params as well as it can. It will also set the fitparameter bounds so that those can be used in the fitter. 
+    """
+   
+    if not fitparam_dict:
+        print("Message from sinewave_prefit: You did not supply a dictionary of parameters to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        return False
+
+    if not fitparam_bounds_dict:
+        print("Message from sinewave_prefit: You did not supply a dictionary of parameter bounds to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        return False
+
+    # if we set the inversion parameter to 1, that means that we will invert the inputs
+    # otherwise we ignore whatever is there and do no inversion
+    if fitparam_dict["inversion"] == 1:
+        measured_data = -1*measured_data ##
+
+    if isinstance(fitparam_dict["smoothing"],(int,float)): # this means that it has not been given externally
+        if fitparam_dict["smoothing"] <= 0: 
+            print("Message from curvepeak_prefit: you gave an input for Gaussian smoothing that is less than or equal 0. This is not allowed. Not doing any Gaussian smoothing on the data")
+        else: # we apply a Gaussian smoothing filter to the data
+            measured_data = gaussian_filter1d(measured_data,fitparam_dict["smoothing"])
+    
+    if fitparam_dict["numpeaks"] is None:
+        fitparam_dict["numpeaks"] = 1
+    elif isinstance(fitparam_dict["numpeaks"],int):
+        if fitparam_dict["numpeaks"] < 1:
+            print("Message from curvepeak_prefit: numpeaks requested must be an integer greater or equal to 1. Setting numpeaks = 1")
+            fitparam_dict["numpeaks"] = 1
+    else:
+        print("Message from curvepeak_prefit: numpeaks requested must be an integer, and now it is apparently not. Setting numpeaks = 1")
+        fitparam_dict["numpeaks"] = 1
+    
+    # since this is not really a fit, we don't have any bounds
+    # just to keep interface consistens, we set all bounds that are None 
+    # to [0,1]
+    for (key,value) in fitparam_bounds_dict.items():
+        if value is None: 
+            fitparam_bounds_dict[key] = [0,1]
+
+    return True
 

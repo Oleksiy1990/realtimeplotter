@@ -3,6 +3,10 @@
 Created on Mon Oct 26 18:24:43 2020
 
 @author: Oleksiy
+
+
+This is for now for testing the fitter via the JSON remote interface
+
 """
 
 import socket
@@ -83,8 +87,11 @@ xr = np.random.rand(200)*50
 datapts = [{"curveNumber":1,"xval":x,
                             "yval":np.sin(3*x) + random.random()-0.5,"yerr":0.05} for x in xr]
 
+datapts_Gaussian = [{"curveNumber":1,"xval":x,
+                            "yval":np.exp(-np.power(x-25.,2)/10) + random.random()-0.5,"yerr":0.05} for x in xr]
+
 mymethod4 = "addData"
-myparams4 = {"pointList":datapts}
+myparams4 = {"pointList":datapts_Gaussian}
 mymessagedict4 = {"jsonrpc":"2.0", 
                  "method":mymethod4,
                  "params":myparams4,
@@ -116,7 +123,7 @@ mymessagedict5 = {"jsonrpc":"2.0",
 
 mymessagedict6 = {"jsonrpc":"2.0", 
                  "method":"getFitResult",
-                 "params":{"curveNumber":2},
+                 "params":{"curveNumber":1},
                  "id":1}
 
 
@@ -186,7 +193,21 @@ mymessagedict11 = {"jsonrpc":"2.0",
                  "id":1}
 
 
-r1 = json.dumps(mymessagedict5)
+mymethod12 = "doFit"
+myparams12 = {"fitFunction":"curvepeak",
+             "curveNumber": 1,
+             "startingParameters":{"numpeaks":3,
+                                   "smoothing":0.1},
+                "fitMethod":"findmax",
+                "performFitting":""
+
+             }   
+mymessagedict12 = {"jsonrpc":"2.0", 
+                 "method":mymethod12,
+                 "params":myparams12,
+                 "id":1}
+
+r1 = json.dumps(mymessagedict6)
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 
