@@ -82,16 +82,21 @@ mymessagedict2 = {"jsonrpc":"2.0",
                  "id":1}
 #print(mymessagedict2)
 
-xr = np.random.rand(200)*50
+xr = np.random.rand(100)*50
 
 datapts = [{"curveNumber":1,"xval":x,
                             "yval":np.sin(3*x) + random.random()-0.5,"yerr":0.05} for x in xr]
 
 datapts_Gaussian = [{"curveNumber":1,"xval":x,
-                            "yval":np.exp(-np.power(x-25.,2)/10) + random.random()-0.5,"yerr":0.05} for x in xr]
+                            "yval":np.exp(-np.power(x-25.,2)/10) + (random.random()-0.5),"yerr":0.05} for x in xr]
 
+datapts_parabolic = [{"curveNumber":1,"xval":x,
+                            "yval":2*np.power(x-25,2.) +5*(x-25) - 20 + 50*(random.random()-0.5),"yerr":0.05} for x in xr]
+
+datapts_linear = [{"curveNumber":1,"xval":x,
+                            "yval":2*x - 20 + 50*(random.random()-0.5),"yerr":0.05} for x in xr]
 mymethod4 = "addData"
-myparams4 = {"pointList":datapts_Gaussian}
+myparams4 = {"pointList":datapts_linear}
 mymessagedict4 = {"jsonrpc":"2.0", 
                  "method":mymethod4,
                  "params":myparams4,
@@ -207,7 +212,18 @@ mymessagedict12 = {"jsonrpc":"2.0",
                  "params":myparams12,
                  "id":1}
 
-r1 = json.dumps(mymessagedict6)
+mymethod13 = "doFit"
+myparams13 = {"fitFunction":"linearfit",
+             "curveNumber": 1,
+                "fitMethod":"differential_evolution",
+                "performFitting":""
+
+             }   
+mymessagedict13 = {"jsonrpc":"2.0", 
+                 "method":mymethod13,
+                 "params":myparams13,
+                 "id":1}
+r1 = json.dumps(mymessagedict13)
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 

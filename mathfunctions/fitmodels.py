@@ -1,7 +1,8 @@
 import numpy as np
 import scipy.signal as spsig
 from scipy.ndimage import gaussian_filter1d
-
+import scipy.stats as stats
+import matplotlib.pyplot as plt
 
 """
 _prefit functions are called from fitmodelclass.do_prefit(). They are called with sorted array values on the x-axis.
@@ -320,8 +321,174 @@ def gaussian_prefit(independent_var, measured_data, errorbars,
         fitparam_bounds_dict["sigma"] = sigma_bounds_est
 
     return True
+#===============================================
 
+# Section for fitting a line
+def linearfit_base(fitparams,independent_var):
+    """
+    fitparams = [slope,yintercept]
+    """
+    return fitparams[0]*independent_var + fitparams[1]
 
+def linearfit(fitparams,independent_var,measured_data,errorbars):
+    """
+    fitparams = [slope,yintercept]
+    """
+    return (linearfit_base(fitparams,independent_var) - measured_data)/errorbars
+
+def linearfit_check(fitparams):
+    if len(fitparams) == 2:
+        return True
+    else:
+        return False
+
+def linearfit_paramdict() -> dict:
+    fitparam_dict = {"slope":None, "yintercept":None}
+    return fitparam_dict
+
+def linearfit_prefit(independent_var, measured_data, errorbars, fitparam_dict, fitparam_bounds_dict) -> bool:
+    """
+    This requires the x-values, y-values, and the error bars (although error bars are not really necessary 
+    but it's just for uniformity, one can simply set them all to 1.
+
+    It also requires fitparam_dict and fitparam_bounds_dict. It will look if any values in fitparam_dict have already been set 
+    and use those params, and estimate the other params as well as it can. It will also set the fitparameter bounds so that those can be used in the fitter. 
+    """
+   
+    if not fitparam_dict:
+        print("Message from linearfit_prefit: You did not supply a dictionary of parameters to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        return False
+
+    if not fitparam_bounds_dict:
+        print("Message from linearfit_prefit: You did not supply a dictionary of parameter bounds to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        return False
+
+    # we want to keep the values for start parameters constant if they have been given externally!
+
+    # first we estimate the slope
+    if fitparam_dict["slope"] is None: # this means that it has not been given externally
+        
+        xval_indices = np.random.choice(list(range(len(independent_var))),np.maximum(2,int(len(independent_var)/3.)),replace=False)
+        xval_indices_sorted = np.sort(xval_indices)
+        xval_samples = independent_var[xval_indices_sorted] # I just recast it here so that it's sorted
+        yval_samples = measured_data[xval_indices_sorted]
+        yval_diffs = np.diff(yval_samples) # this is a sample of "rises"
+        xval_diffs = np.diff(xval_samples) # this is the corresponding sample of "runs"
+        slope_est = np.mean(yval_diffs/xval_diffs)
+        fitparam_dict["slope"] = slope_est
+
+    if fitparam_bounds_dict["slope"] is None: # this means that it has not been given externally
+        slope_bounds_est = [-1e100,1e100]
+        fitparam_bounds_dict["slope"] = slope_bounds_est
+
+    # now we estimate the yintercept
+    if fitparam_dict["yintercept"] is None:
+        xval_indices = np.random.choice(list(range(len(independent_var))),np.maximum(2,int(len(independent_var)/3.)),replace=False)
+        xval_indices_sorted = np.sort(xval_indices)
+        xval_samples = independent_var[xval_indices_sorted] # I just recast it here so that it's sorted
+        yval_samples = measured_data[xval_indices_sorted]
+        yintercept_estimates = yval_samples - fitparam_dict["slope"]*xval_samples
+        yintercept_est = np.mean(yintercept_estimates)
+        fitparam_dict["yintercept"] = yintercept_est
+
+    if fitparam_bounds_dict["yintercept"] is None:
+        yintercept_bounds_est = [-1e100,1e100]
+        fitparam_bounds_dict["yintercept"] = yintercept_bounds_est
+
+    return True
+
+# Section for fitting a line
+def parabolicfit_base(fitparams,independent_var):
+    """
+    fitparams = [aparam,bparam,cparam]
+    """
+    return fitparams[0]*np.power(independent_var,2.) + fitparams[1]*independent_var + fitparams[2]
+
+def parabolicfit(fitparams,independent_var,measured_data,errorbars):
+    """
+    fitparams = [aparam,bparam,cparam]
+    """
+    return (parabolicfit_base(fitparams,independent_var) - measured_data)/errorbars
+
+def parabolicfit_check(fitparams):
+    if len(fitparams) == 3:
+        return True
+    else:
+        return False
+
+def parabolicfit_paramdict() -> dict:
+    fitparam_dict = {"aparam":None, "bparam":None, "cparam":None}
+    return fitparam_dict
+
+def parabolicfit_prefit(independent_var, measured_data, errorbars, fitparam_dict, fitparam_bounds_dict) -> bool:
+    """
+    This requires the x-values, y-values, and the error bars (although error bars are not really necessary 
+    but it's just for uniformity, one can simply set them all to 1.
+
+    It also requires fitparam_dict and fitparam_bounds_dict. It will look if any values in fitparam_dict have already been set 
+    and use those params, and estimate the other params as well as it can. It will also set the fitparameter bounds so that those can be used in the fitter. 
+
+    NOTE: It's not the best prefitter yet, but it seems to work for reasonable parabolas. 
+    The automatic initial parameter estimation routines can of course be improved, for the cases 
+    where there is a lot of noise in the data
+
+    """
+   
+    if not fitparam_dict:
+        print("Message from linearfit_prefit: You did not supply a dictionary of parameters to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        return False
+
+    if not fitparam_bounds_dict:
+        print("Message from linearfit_prefit: You did not supply a dictionary of parameter bounds to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        return False
+
+    # we want to keep the values for start parameters constant if they have been given externally!
+
+    # first we estimate the aparam
+    if fitparam_dict["aparam"] is None: # this means that it has not been given externally
+        # get the average distance between the points and smooth using a Gaussian filter
+        avg_distance_xpoints = (independent_var[-1] - independent_var[0])/len(independent_var)
+        gauss_smoothing_width = 5*avg_distance_xpoints # width of the Gaussian kernel is 5
+
+        smoothed_data = gaussian_filter1d(measured_data,gauss_smoothing_width)
+        firstderivative = np.gradient(smoothed_data,independent_var)
+        secondderivative = np.gradient(firstderivative,independent_var)
+
+        # Now calculate the z-score for all numbers and discard those that are more than 1 st dev away
+        secondderivative_zcondition = np.abs(stats.zscore(secondderivative)) <= 1. 
+        aparam_est = np.mean(secondderivative[secondderivative_zcondition])/2.
+        fitparam_dict["aparam"] = aparam_est
+
+    if fitparam_bounds_dict["aparam"] is None: # this means that it has not been given externally
+        
+        aparam_bounds_est = [-1e100,1e100]
+        fitparam_bounds_dict["aparam"] = aparam_bounds_est
+
+    # now we estimate the bparam
+    if fitparam_dict["bparam"] is None:
+        firstderivative = np.gradient(measured_data,independent_var)
+        b_estimates = firstderivative - 2*fitparam_dict["aparam"]*independent_var
+        bparam_est = np.mean(b_estimates)
+        #TODELETE:
+        print("bparam_est: ",bparam_est)
+        fitparam_dict["bparam"] = bparam_est
+
+    if fitparam_bounds_dict["bparam"] is None:
+        bparam_bounds_est = [-1e100,1e100]
+        fitparam_bounds_dict["bparam"] = bparam_bounds_est
+    
+    if fitparam_dict["cparam"] is None:
+        c_estimates = measured_data - np.power(independent_var,2.)*fitparam_dict["aparam"] - independent_var*fitparam_dict["bparam"]
+        cparam_est = np.mean(c_estimates)
+        #TODELETE:
+        print("cparam_est: ",cparam_est)
+        fitparam_dict["cparam"] = cparam_est
+
+    if fitparam_bounds_dict["cparam"] is None: 
+        cparam_bounds = [-1e100,1e100]
+        fitparam_bounds_dict["cparam"] = cparam_bounds 
+
+    return True
 ########################  RAP shelving, maximizing difference between two curves
 # we can feed already the difference itself as a single dataset
 def curvepeak_base(fitparams,independent_var):
