@@ -489,6 +489,78 @@ def parabolicfit_prefit(independent_var, measured_data, errorbars, fitparam_dict
         fitparam_bounds_dict["cparam"] = cparam_bounds 
 
     return True
+
+#=====================================
+# Section for finding the zero region for resonance tracking
+
+def resonancetrackingzero_base(fitparams,independent_var):
+    """
+    fitparams = [regionstart,regionfinish]
+    """
+    result_base = np.zeros(len(independent_var))
+    region_chunk = (independent_var > fitparams[0]) & (independent_var < fitparams[1])
+    result_base[region_chunk] = 1.
+    return result_base # we just want to return zeroes
+
+def resonancetrackingzero(fitparams,independent_var,measured_data,errorbars):
+    """
+    fitparams = [regionstart,regionfinish]
+    """
+    # first select the region based on the guess of the limits
+    guessed_region_chunk = (independent_var > fitparams[0]) & (independent_var < fitparams[1])
+    # then select the data chunk from measured data and errorbars
+    guessed_data_chunk = measured_data[guessed_region_chunk]
+    guessed_errorbars_chunk = errorbars[guessed_region_chunk]
+    # if we selected a chunk with no data, put a very large penalty, so that it can never be right
+    if len(guessed_data_chunk) < 1: # this means that the borders excluded all points 
+        guessed_data_chunk = np.full(len(independent_var),1e100) # basically filled with a huge number
+        guessed_errorbars_chunk = np.ones(len(independent_var))
+    
+    return np.abs(guessed_data_chunk)/(guessed_errorbars_chunk * np.log10(len(guessed_data_chunk)+1e-10)*np.sqrt(len(guessed_data_chunk))) 
+    # Note that we divide by the length of the data chunk so that the longer the data chunk, the better. One can also put a power of the length data chunk to get better behavior if necessary
+
+def resonancetrackingzero_check(fitparams):
+    if len(fitparams) == 2:
+        return True
+    else:
+        return False
+
+def resonancetrackingzero_paramdict() -> dict:
+    fitparam_dict = {"regionstart":None, "regionfinish":None}
+    return fitparam_dict
+
+def resonancetrackingzero_prefit(independent_var, measured_data, errorbars, fitparam_dict, fitparam_bounds_dict) -> bool:
+    """
+    This requires the x-values, y-values, and the error bars (although error bars are not really necessary 
+    but it's just for uniformity, one can simply set them all to 1.
+
+    It also requires fitparam_dict and fitparam_bounds_dict. It will look if any values in fitparam_dict have already been set 
+    and use those params, and estimate the other params as well as it can. It will also set the fitparameter bounds so that those can be used in the fitter. 
+    """
+   
+    if not fitparam_dict:
+        print("Message from resonancetrackingzero_prefit: You did not supply a dictionary of parameters to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        return False
+
+    if not fitparam_bounds_dict:
+        print("Message from resonancetrackingzero_prefit: You did not supply a dictionary of parameter bounds to put the prefit into. Prefitting impossible, not returning any dictionaries for fitting and plotting")
+        return False
+
+    # we want to keep the values for start parameters constant if they have been given externally!
+
+    # first we estimate the slope
+    if (fitparam_dict["regionstart"] is None) or (fitparam_dict["regionfinish"] is None): # we if one of them is not given, then we fdo automatic estimation of both
+        lowval_list = [np.random.randint(0,len(independent_var)-5) for idx in range(int(len(independent_var/3.)))]
+        highval_list = [np.random.randint(lowval+3,len(independent_var)) for lowval in lowval_list]
+        costfunction_list = [np.sum(np.abs(measured_data[lowval_list[idx]:highval_list[idx]])) for idx in range(len(lowval_list))]
+        lowest_costfunction_position = np.argmin(costfunction_list)
+        fitparam_dict["regionstart"] = independent_var[lowval_list[lowest_costfunction_position]]
+        fitparam_dict["regionfinish"] = independent_var[highval_list[lowest_costfunction_position]]
+        fitparam_bounds_dict["regionstart"] = [independent_var[0],independent_var[-1]]    
+        fitparam_bounds_dict["regionfinish"] = [independent_var[0],independent_var[-1]]    
+    return True
+
+
 ########################  RAP shelving, maximizing difference between two curves
 # we can feed already the difference itself as a single dataset
 def curvepeak_base(fitparams,independent_var):
@@ -508,7 +580,7 @@ def curvepeak_check(fitparams):
         return False
 
 def curvepeak_paramdict():
-    fitparam_dict = {"peakcoordinate":None,"peakvalue":None,"numpeaks":None,"smoothing":None, "inversion":None}
+    fitparam_dict = {"peakcoordinate":None,"peakvalue":None,"numpeaks":None,"smoothingwidth":None, "inversion":None}
     return fitparam_dict
 
 def curvepeak_prefit(independent_var, measured_data, errorbars, fitparam_dict, fitparam_bounds_dict) -> bool:
@@ -533,11 +605,11 @@ def curvepeak_prefit(independent_var, measured_data, errorbars, fitparam_dict, f
     if fitparam_dict["inversion"] == 1:
         measured_data = -1*measured_data ##
 
-    if isinstance(fitparam_dict["smoothing"],(int,float)): # this means that it has not been given externally
-        if fitparam_dict["smoothing"] <= 0: 
-            print("Message from curvepeak_prefit: you gave an input for Gaussian smoothing that is less than or equal 0. This is not allowed. Not doing any Gaussian smoothing on the data")
+    if isinstance(fitparam_dict["smoothingwidth"],(int,float)): # this means that it has not been given externally
+        if fitparam_dict["smoothingwidth"] <= 0: 
+            print("Message from curvepeak_prefit: you gave an input for Gaussian smoothingwidth that is less than or equal 0. This is not allowed. Not doing any Gaussian smoothing on the data")
         else: # we apply a Gaussian smoothing filter to the data
-            measured_data = gaussian_filter1d(measured_data,fitparam_dict["smoothing"])
+            measured_data = gaussian_filter1d(measured_data,fitparam_dict["smoothingwidth"])
     
     if fitparam_dict["numpeaks"] is None:
         fitparam_dict["numpeaks"] = 1

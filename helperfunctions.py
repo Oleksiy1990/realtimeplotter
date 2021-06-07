@@ -35,8 +35,6 @@ def create_JSONRPC_responsemessage(result_arg: dict, id_arg = None) -> str:
     return json.dumps(data_dict)
 
 def send_TCPIP_message(socket_to_send,message_string,isPreamblePresent,encoding = "utf-8"):
-    # TODELETE
-    print("from helperfunctions send_TCPIP_message: type(socket_to_send): {}".format(type(socket_to_send)))
     if isPreamblePresent is True:
         message_encoded = message_string.encode(encoding = encoding)
         message_len = len(message_encoded)

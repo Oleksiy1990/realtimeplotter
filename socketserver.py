@@ -85,8 +85,6 @@ class TCPIPserver():
                 #note that the code is still sitting in the outer while True loop waiting for 00000000 to exit the function 
                 result = full_message_bytes.decode(encoding = encoding)
                 workersignals.set_client_communication_socket.emit(socket_in)
-                # TODELETE
-                print("From socketserver clientsocket_parser: ",type(socket_in))
                 workersignals.newdata.emit(result)
 
         # TODO: Implement the case for messages without reported length

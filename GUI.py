@@ -90,7 +90,7 @@ class TCP_IP_Worker(QtCore.QRunnable):
 class MainWindow(QtGui.QMainWindow):
 
     # These are class variables, or effetively constants for our purposes
-    DEFINED_FITFUNCTIONS = ["sinewave","damped_sinewave","gaussian","curvepeak","linearfit","parabolicfit"]
+    DEFINED_FITFUNCTIONS = ["sinewave","damped_sinewave","gaussian","curvepeak","linearfit","parabolicfit","resonancetrackingzero"]
     MAX_NUM_CURVES = 50 # This is a large upper limit on the max number of curves that
                         # can be plotted at the same time
     NUMPOINTS_CURVE_DENSE = 350
