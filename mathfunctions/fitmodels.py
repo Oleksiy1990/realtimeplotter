@@ -516,7 +516,7 @@ def resonancetrackingzero(fitparams,independent_var,measured_data,errorbars):
         guessed_data_chunk = np.full(len(independent_var),1e100) # basically filled with a huge number
         guessed_errorbars_chunk = np.ones(len(independent_var))
     
-    return np.abs(guessed_data_chunk)/(guessed_errorbars_chunk * np.log10(len(guessed_data_chunk)+1e-10)*np.sqrt(len(guessed_data_chunk))) 
+    return np.abs(guessed_data_chunk)/(guessed_errorbars_chunk * np.log10(len(guessed_data_chunk)+1e-10)*np.power(len(guessed_data_chunk),0.5)) 
     # Note that we divide by the length of the data chunk so that the longer the data chunk, the better. One can also put a power of the length data chunk to get better behavior if necessary
 
 def resonancetrackingzero_check(fitparams):

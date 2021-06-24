@@ -154,8 +154,19 @@ mymessagedict7 = {"jsonrpc":"2.0",
 #                 "params":myparams9,
 #                 "id":1}
 
-path = "C:/Users/Oleksiy/Documents/UniMainz/PhononFit/testdata/ResTrackData/02"
-datalist = generate_experimental_datalist(path, 22)
+#path = "C:/Users/Oleksiy/Documents/UniMainz/PhononFit/testdata/ResTrackData/02"
+#datalist = generate_experimental_datalist(path, 22)
+#datapts = [{"curveNumber":1,"xval":x[0],
+#                            "yval":x[1],"yerr":x[2]} for x in datalist]
+#mymethod9 = "addData"
+#myparams9 = {"pointList":datapts}
+#mymessagedict9 = {"jsonrpc":"2.0", 
+#                 "method":mymethod9,
+#                 "params":myparams9,
+#                 "id":1}
+
+path = r"\\fs01\oonishch$\Downloads\autocalibtestdata\restrackingeasy"
+datalist = generate_experimental_datalist(path, 22) # 20 corresponds to the yellow line, 22 corresponds to the phase plot, where we need to find zero
 datapts = [{"curveNumber":1,"xval":x[0],
                             "yval":x[1],"yerr":x[2]} for x in datalist]
 mymethod9 = "addData"
@@ -164,6 +175,7 @@ mymessagedict9 = {"jsonrpc":"2.0",
                  "method":mymethod9,
                  "params":myparams9,
                  "id":1}
+
 
 
 mymethod10 = "doFit"
@@ -215,7 +227,8 @@ mymessagedict12 = {"jsonrpc":"2.0",
 mymethod13 = "doFit"
 myparams13 = {"fitFunction":"linearfit",
              "curveNumber": 1,
-                "fitMethod":"differential_evolution",
+                "fitMethod":"least_squares",
+                "cropLimits":[94.943230,94.944118],
                 "performFitting":""
 
              }   
