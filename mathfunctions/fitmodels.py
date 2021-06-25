@@ -510,13 +510,13 @@ def resonancetrackingzero(fitparams,independent_var,measured_data,errorbars):
     guessed_region_chunk = (independent_var > fitparams[0]) & (independent_var < fitparams[1])
     # then select the data chunk from measured data and errorbars
     guessed_data_chunk = measured_data[guessed_region_chunk]
-    #guessed_errorbars_chunk = errorbars[guessed_region_chunk] # uncomment if you intend to use error bars
+    guessed_errorbars_chunk = errorbars[guessed_region_chunk]
     # if we selected a chunk with no data, put a very large penalty, so that it can never be right
     if len(guessed_data_chunk) < 1: # this means that the borders excluded all points 
         guessed_data_chunk = np.full(len(independent_var),1e100) # basically filled with a huge number
-        #guessed_errorbars_chunk = np.ones(len(independent_var)) # uncomment if you intend to use error bars
+        guessed_errorbars_chunk = np.ones(len(independent_var))
     
-    return np.abs(guessed_data_chunk)/(np.log10(len(guessed_data_chunk)+1e-10)*np.power(len(guessed_data_chunk),0.5)) 
+    return np.abs(guessed_data_chunk)/(guessed_errorbars_chunk * np.log10(len(guessed_data_chunk)+1e-10)*np.power(len(guessed_data_chunk),0.5)) 
     # Note that we divide by the length of the data chunk so that the longer the data chunk, the better. One can also put a power of the length data chunk to get better behavior if necessary
 
 def resonancetrackingzero_check(fitparams):
