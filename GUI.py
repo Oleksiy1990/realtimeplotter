@@ -547,6 +547,7 @@ class MainWindow(QtGui.QMainWindow):
         # TODO: Make sure to delete PlotNumberChoice entry when the clear command is issued
 
     def _clear_curve(self,curvenumber: int) -> bool:
+        # TODO: check this function, not sure if it works good. The goal of this function though is to clear everything for an individual curve
         # First we remove everything from the plot for this curve
         if hasattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)):
             #TODELETE
@@ -573,10 +574,9 @@ class MainWindow(QtGui.QMainWindow):
         return True
 
 
-    # This function is for real-time plotting of data points, 
+    # The next function is for real-time plotting of data points, 
     #just as they come in through TCP/IP
     # this is called directly from interpreter basically!
-    #def generate_plot_pointbypoint(self,datapoint): # this is the old name for the plotting function
     def plot_single_datapoint(self,plot_single_datapoint_arg: dict) -> bool:
         """
         Plots a data point as it comes in from the client
@@ -698,6 +698,42 @@ class MainWindow(QtGui.QMainWindow):
             return False
 
 
+    #========= Functions associated with doClear method
+    # so far defined: "clear_data","clear_config","clear_everything","clear_plot"
+    def clear_everything(self,dummyargument: str) -> bool:
+        """
+        Gets rid of all data that has been send to the fitter and plotter server
+
+        Parameters 
+        ----------
+        dummyargument: str
+            Must be an empty string
+        
+        Returns
+        -------
+        bool
+            True if it's all good 
+            False if an error occurred
+
+        """
+        # we first check that the argument is correct
+        if not isinstance(dummyargument,str):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_everything"))
+            print("You supplied something other than a string as the function argument. Not doing anything \n")
+            return False
+        if len(dummyargument.strip()) > 0: 
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_everything"))
+            print("You supplied a non-empty sring as the function argument. Not doing anything. You must supply an empty string for this to work \n")
+            return False
+
+        for idx in range(self.MAX_NUM_CURVES):
+            self._clear_curve(idx)
+        self.clear_plot("") # TODO! Make sure that this works correctly for clearing individual curves
+        getattr(self, self.legend_item_name).clear()
+        self.PlotNumberChoice.clear() # Clear all choices because there are no curves left at this point
+        return True
+
+
     def clear_plot(self,dummyargument: str):
         """
         This only clear the visual from the plot, it doesn't clear the saved data
@@ -782,7 +818,9 @@ class MainWindow(QtGui.QMainWindow):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_config"))
             print("You supplied the string argument that is different from all. This is not yet implemented. Not doing anything \n")
             return False
-            
+    #End of functions associated with doClear
+    #=========================================          
+
     def set_axis_labels(self,axis_labels_arg: List[str]) -> bool:
         """
         Puts x-axis label (below) and y-axis label (left)

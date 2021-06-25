@@ -19,7 +19,6 @@ class JSONread():
     jsonrpc2_keys = ["jsonrpc","method","params","id"]
     # method = STRING data, or config, or getresult, or something else
     # params = DICT with keys being for example which function needs to be called or what sort of data it is, and the value is the corresponding 
-    # value then
 
     method_keys = ["doClear","setConfig","addData","doFit","getFitResult","getConfig"]
     # There are the possible values to go with the "method" key in JSON
@@ -35,7 +34,7 @@ class JSONread():
     that can vary, and that will be written in the manual
     """
     # options to put as params keys for doClear method
-    doClear_message_keys = ["clearData","clearConfig"]
+    doClear_message_keys = ["everything","config","data","plot"]
 
     # options to put as params keys for setConfig method
     setConfig_message_keys = ["axisLabels",
@@ -144,15 +143,14 @@ class JSONread():
         function to call in the program, the second element is whatever is supposed 
         to be fed into that function
 
-        NOTE! Checks params in the exact sequence as defined in doClear_message_keys list
         """
         params_dict = messagedict["params"] # the input that came via JSON
         output = [] # The output list of tuples that will be returned
         for keystring in JSONread.doClear_message_keys: # check out the list of all possible keys to config
             if keystring in params_dict.keys():
                 data = params_dict[keystring]
-                output.append((self.__message_key_to_function_name(keystring),data))
-                # output command is message key with all lowercase, underscore_separated
+                output.append(("clear_"+keystring,data))
+                # appends "clear_" in front to all possible param values because that's how the functions are called in GUI.py
                 params_dict.pop(keystring)
         if not output: # this will evaluate to False if output is empty 
             print("Message from Module {:s}, Class {:s} function {:s} :".format(__name__,
