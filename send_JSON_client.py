@@ -166,7 +166,7 @@ mymessagedict7 = {"jsonrpc":"2.0",
 #                 "id":1}
 
 path = r"\\fs01\oonishch$\Downloads\autocalibtestdata\restrackingeasy"
-datalist = generate_experimental_datalist(path, 22) # 20 corresponds to the yellow line, 22 corresponds to the phase plot, where we need to find zero
+datalist = generate_experimental_datalist(path, 20) # 20 corresponds to the yellow line, 22 corresponds to the phase plot, where we need to find zero
 datapts = [{"curveNumber":1,"xval":x[0],
                             "yval":x[1],"yerr":x[2]} for x in datalist]
 mymethod9 = "addData"
@@ -228,7 +228,7 @@ mymethod13 = "doFit"
 myparams13 = {"fitFunction":"linearfit",
              "curveNumber": 1,
                 "fitMethod":"least_squares",
-                "cropLimits":[94.943230,94.944118],
+                "cropLimits":[99.574194,99.577490],
                 "performFitting":""
 
              }   
@@ -251,7 +251,7 @@ mymessagedict14 = {"jsonrpc":"2.0",
                  "id":1}
 
 
-r1 = json.dumps(mymessagedict14)
+r1 = json.dumps(mymessagedict13)
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 
