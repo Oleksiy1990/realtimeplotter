@@ -531,16 +531,18 @@ class MainWindow(QtGui.QMainWindow):
         setattr(self, self.xaxis_name + "{:d}".format(curvenumber),[])
         setattr(self, self.yaxis_name + "{:d}".format(curvenumber),[])
         setattr(self, self.err_name + "{:d}".format(curvenumber),[])
-        setattr(self, self.pen_name + "{:d}".format(curvenumber), pg.mkPen(color=self.colorpalette[curvenumber],
-                                                          style=QtCore.Qt.DashLine))
+        setattr(self, self.pen_name + "{:d}".format(curvenumber), 
+                pg.mkPen(color=self.colorpalette[curvenumber],
+                style=QtCore.Qt.DashLine))
 
         setattr(self, self.errorbar_pen_name + "{:d}".format(curvenumber),
                  pg.mkPen(color=self.colorpalette[curvenumber],
                           style=QtCore.Qt.SolidLine))
         setattr(self, self.plot_line_name + "{:d}".format(curvenumber),
-                 self.graphWidget.plot(symbol="o", name=self.legend_label_dict["curve{:d}".format(curvenumber)],
-                                       pen=getattr(self, self.pen_name + "{:d}".format(curvenumber)),
-                                       symbolBrush=pg.mkBrush(self.colorpalette[curvenumber])))
+                 self.graphWidget.plot(symbol="o",
+                     name=self.legend_label_dict["curve{:d}".format(curvenumber)],
+                     pen=getattr(self, self.pen_name + "{:d}".format(curvenumber)),
+                     symbolBrush=pg.mkBrush(self.colorpalette[curvenumber])))
         # Now finally add the curve to the list of available curves
         self.PlotNumberChoice.addItem("{:d}".format(curvenumber))
         return True
@@ -716,6 +718,8 @@ class MainWindow(QtGui.QMainWindow):
             False if an error occurred
 
         """
+        # NOTE: This function seems to work
+
         # we first check that the argument is correct
         if not isinstance(dummyargument,str):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_everything"))
@@ -728,20 +732,10 @@ class MainWindow(QtGui.QMainWindow):
 
         for idx in range(self.MAX_NUM_CURVES):
             self._clear_curve(idx)
-        self.clear_plot("") # TODO! Make sure that this works correctly for clearing individual curves
+        #self.clear_plot("") # TODO! Make sure that this works correctly for clearing individual curves
         getattr(self, self.legend_item_name).clear()
         self.PlotNumberChoice.clear() # Clear all choices because there are no curves left at this point
         return True
-
-
-    def clear_plot(self,dummyargument: str):
-        """
-        This only clear the visual from the plot, it doesn't clear the saved data
-        """
-        self.graphWidget.clear()
-        self.arePlotsCleared = True
-        if hasattr(self, self.legend_item_name):
-            getattr(self, self.legend_item_name).clear()
 
     def clear_data(self,clear_data_arg: Union[int,str]) -> bool:
         """
@@ -773,8 +767,8 @@ class MainWindow(QtGui.QMainWindow):
             for idx in range(self.MAX_NUM_CURVES):
                 self._clear_curve(idx)
             self.clear_plot("") # TODO! Make sure that this works correctly for clearing individual curves
-            getattr(self, self.legend_item_name).clear()
-            self.PlotNumberChoice.clear() # Clear all choices because there are no curves left at this point
+            #getattr(self, self.legend_item_name).clear()
+            #self.PlotNumberChoice.clear() # Clear all choices because there are no curves left at this point
             return True
 
         if not isinstance(clear_data_arg,int):
@@ -785,6 +779,102 @@ class MainWindow(QtGui.QMainWindow):
 
         self._clear_curve(clear_data_arg)
         self._register_available_curves() # This will clear out the plot number choice box, and then register again what's left
+        return True
+
+    def clear_plot(self,clear_plot_arg: Union[int,str]):
+        """
+        
+        Clears the visual from the plot but does NOT clear the data from memory. 
+        The point is that one can in this way delete and put back the visuals of the 
+        curves, without deleting the data, so this is only for visualization
+        
+        Parameters
+        ----------
+        clear_plot_arg: int, str
+            If str, it must be "all", which will clear all plot
+            If int, it's the plot curve number that one wants to clear
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
+        if not isinstance(clear_plot_arg, (int,str)):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_plot"))
+            print("You supplied something other than an integer or string as the function argument. Not doing anything \n")
+            return False
+
+        if clear_plot_arg == "all":
+            for idx in range(self.MAX_NUM_CURVES):
+                if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
+                    getattr(self,self.plot_line_name+"{:d}".format(idx)).clear()
+                    getattr(self,self.errorbar_item_name+"{:d}".format(idx)).setData(pen="w") # NOTE: So far it's the best way I could find to temporarily not show the error bars: I just set them to be white. There seems to be no really better approach 
+
+            return True
+
+        if not isinstance(clear_plot_arg,int):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_plot"))
+            print(
+                "You supplied something other than all or integer into the function. This command cannot be performed \n")
+            return False
+        
+        # if we made it to here, this means that the clear_plot_arg is an integer
+        if hasattr(self,self.plot_line_name+"{:d}".format(clear_plot_arg)):
+            getattr(self,self.plot_line_name+"{:d}".format(clear_plot_arg)).clear()
+            getattr(self,self.errorbar_item_name+"{:d}".format(clear_plot_arg)).setData(pen="w") # NOTE: So far it's the best way I could find to temporarily not show the error bars: I just set them to be white. There seems to be no really better approach 
+        else:
+            print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "clear_plot"))
+            print("You requested to clear a non-existing plot. Doing nothing \n")
+        
+        return True
+
+    def clear_replot(self,clear_replot_arg: Union[int,str]):
+        """
+        
+        This is to replot things that have been cleared 
+        
+        Parameters
+        ----------
+        clear_replot_arg: int, str
+            If str, it must be "all", which will replot everything
+            If int, it's the plot curve number that one wants to replot
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
+        if not isinstance(clear_replot_arg, (int,str)):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_replot"))
+            print("You supplied something other than an integer or string as the function argument. Not doing anything \n")
+            return False
+
+        if clear_replot_arg == "all":
+            for idx in range(self.MAX_NUM_CURVES):
+                if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
+                    getattr(self,self.plot_line_name+"{:d}".format(idx)).setData(x=getattr(self,self.xaxis_name+"{:d}".format(idx)),y=getattr(self,self.yaxis_name+"{:d}".format(idx)))
+                    getattr(self,self.errorbar_item_name+"{:d}".format(idx)).setData(pen=getattr(self,self.errorbar_pen_name+"{:d}".format(idx))) 
+
+            return True
+
+        if not isinstance(clear_replot_arg,int):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_replot"))
+            print(
+                "You supplied something other than all or integer into the function. This command cannot be performed \n")
+            return False
+        
+        # if we made it to here, this means that the clear_plot_arg is an integer
+        if hasattr(self,self.plot_line_name+"{:d}".format(clear_replot_arg)):
+            getattr(self,self.plot_line_name+"{:d}".format(clear_replot_arg)).setData(x=getattr(self.self.xaxis_name+"{:d}".format(clear_replot_arg)),y=getattr(self.self.yaxis_name+"{:d}".format(clear_replot_arg)))
+            getattr(self,self.errorbar_item_name+"{:d}".format(clear_replot_arg)).setData(pen=getattr(self,self.errorbar_pen_name+"{:d}".format(clear_replot_arg))) 
+        else:
+            print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "clear_replot"))
+            print("You requested to clear a non-existing plot. Doing nothing \n")
+        
         return True
 
     def clear_config(self,clear_config_arg: str) -> bool:

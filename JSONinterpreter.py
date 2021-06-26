@@ -34,7 +34,7 @@ class JSONread():
     that can vary, and that will be written in the manual
     """
     # options to put as params keys for doClear method
-    doClear_message_keys = ["everything","config","data","plot"]
+    doClear_message_keys = ["everything","config","data","plot","replot"]
 
     # options to put as params keys for setConfig method
     setConfig_message_keys = ["axisLabels",
