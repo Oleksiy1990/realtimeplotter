@@ -79,6 +79,30 @@ mymessagedict = {"jsonrpc":"2.0",
                  "id":1}
 MessageDicts["clearplot1"] = mymessagedict
 
+mymethod = "doClear"
+myparams = {"config": "all"}
+mymessagedict = {"jsonrpc":"2.0", 
+                 "method":mymethod,
+                 "params":myparams,
+                 "id":1}
+MessageDicts["clearConfig"] = mymessagedict
+
+mymethod = "doClear"
+myparams = {"data": "all"}
+mymessagedict = {"jsonrpc":"2.0", 
+                 "method":mymethod,
+                 "params":myparams,
+                 "id":1}
+MessageDicts["cleardataall"] = mymessagedict
+
+mymethod = "doClear"
+myparams = {"data": 1}
+mymessagedict = {"jsonrpc":"2.0", 
+                 "method":mymethod,
+                 "params":myparams,
+                 "id":1}
+MessageDicts["cleardata1"] = mymessagedict
+
 mymethod3 = "addData"
 myparams3 = {"dataPoint":{"curveNumber":5,"xval":0.2,
                             "yval":0.7,"yerr":0.05}}
@@ -284,7 +308,7 @@ mymessagedict14 = {"jsonrpc":"2.0",
                  "id":1}
 
 
-r1 = json.dumps(MessageDicts["replotall"])
+r1 = json.dumps(MessageDicts["cleardata1"])
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 
