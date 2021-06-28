@@ -509,7 +509,7 @@ class MainWindow(QtGui.QMainWindow):
         if doSort: 
             arr0 = np.array(args[0])
             arr0_arguments = np.argsort(arr0)
-            result = [np.array(arg,dtype=np.float)[arr0_arguments] for arg in args]
+            result = [np.array(arg,dtype=float)[arr0_arguments] for arg in args]
             return result
         else:
             result = [np.array(arg) for arg in args]
@@ -795,8 +795,10 @@ class MainWindow(QtGui.QMainWindow):
             for idx in range(self.MAX_NUM_CURVES):
                 if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
                     getattr(self,self.plot_line_name+"{:d}".format(idx)).clear()
+                if hasattr(self,self.fitplot_line_name+"{:d}".format(idx)):
+                    getattr(self,self.fitplot_line_name+"{:d}".format(idx)).clear()
+                if hasattr(self,self.errorbar_item_name+"{:d}".format(idx)):
                     getattr(self,self.errorbar_item_name+"{:d}".format(idx)).setData(pen="w") # NOTE: So far it's the best way I could find to temporarily not show the error bars: I just set them to be white. There seems to be no really better approach 
-
             return True
 
         if not isinstance(clear_plot_arg,int):
@@ -812,6 +814,9 @@ class MainWindow(QtGui.QMainWindow):
         else:
             print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "clear_plot"))
             print("You requested to clear a non-existing plot. Doing nothing \n")
+            
+        if hasattr(self,self.fitplot_line_name+"{:d}".format(clear_plot_arg)):
+            getattr(self,self.fitplot_line_name+"{:d}".format(clear_plot_arg)).clear()
         
         return True
 
