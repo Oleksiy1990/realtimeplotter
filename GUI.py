@@ -791,7 +791,9 @@ class MainWindow(QtGui.QMainWindow):
             print("You supplied something other than an integer or string as the function argument. Not doing anything \n")
             return False
 
-        if clear_plot_arg == "all":
+        # there are two plot lines given by plot_line_name and fitplot_line_name, plus there are the errorbars given by errorbar_item_name
+        # all of these have to be cleared appropriately
+        if clear_plot_arg == "all": 
             for idx in range(self.MAX_NUM_CURVES):
                 if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
                     getattr(self,self.plot_line_name+"{:d}".format(idx)).clear()
@@ -810,11 +812,12 @@ class MainWindow(QtGui.QMainWindow):
         # if we made it to here, this means that the clear_plot_arg is an integer
         if hasattr(self,self.plot_line_name+"{:d}".format(clear_plot_arg)):
             getattr(self,self.plot_line_name+"{:d}".format(clear_plot_arg)).clear()
-            getattr(self,self.errorbar_item_name+"{:d}".format(clear_plot_arg)).setData(pen="w") # NOTE: So far it's the best way I could find to temporarily not show the error bars: I just set them to be white. There seems to be no really better approach 
         else:
             print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "clear_plot"))
             print("You requested to clear a non-existing plot. Doing nothing \n")
-            
+        
+        if hasattr(self,self.errorbar_item_name+"{:d}".format(clear_plot_arg)):
+            getattr(self,self.errorbar_item_name+"{:d}".format(clear_plot_arg)).setData(pen="w") # NOTE: So far it's the best way I could find to temporarily not show the error bars: I just set them to be white. There seems to be no really better approach     
         if hasattr(self,self.fitplot_line_name+"{:d}".format(clear_plot_arg)):
             getattr(self,self.fitplot_line_name+"{:d}".format(clear_plot_arg)).clear()
         
