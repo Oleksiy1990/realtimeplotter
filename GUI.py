@@ -129,7 +129,8 @@ class MainWindow(QtGui.QMainWindow):
         self.xaxis_name = "x"
         self.yaxis_name = "y"
         self.err_name = "err"
-
+        
+        # Other data for plotting and fitting each curve
         self.fit_cropbounds_name = "fitcropbounds"
         self.plot_line_name = "data_line"
         self.fitplot_line_name = "fit_line"
@@ -150,7 +151,8 @@ class MainWindow(QtGui.QMainWindow):
                 self.errorbar_pen_name,
                 self.fitmodel_instance_name]
 
-        self.all_instance_attribute_config_names = []
+        self.all_config_names = ["axisLabels",
+                "plotTitle"] # we don't put the legends here because they kind of belong to individual curves
 
         self.legend_label_list = [] # processed in self._create_plotline
         self.legend_label_dict = {}
@@ -531,43 +533,33 @@ class MainWindow(QtGui.QMainWindow):
         setattr(self, self.xaxis_name + "{:d}".format(curvenumber),[])
         setattr(self, self.yaxis_name + "{:d}".format(curvenumber),[])
         setattr(self, self.err_name + "{:d}".format(curvenumber),[])
-        setattr(self, self.pen_name + "{:d}".format(curvenumber), pg.mkPen(color=self.colorpalette[curvenumber],
-                                                          style=QtCore.Qt.DashLine))
+        setattr(self, self.pen_name + "{:d}".format(curvenumber), 
+                pg.mkPen(color=self.colorpalette[curvenumber],
+                style=QtCore.Qt.DashLine))
 
         setattr(self, self.errorbar_pen_name + "{:d}".format(curvenumber),
                  pg.mkPen(color=self.colorpalette[curvenumber],
                           style=QtCore.Qt.SolidLine))
         setattr(self, self.plot_line_name + "{:d}".format(curvenumber),
-                 self.graphWidget.plot(symbol="o", name=self.legend_label_dict["curve{:d}".format(curvenumber)],
-                                       pen=getattr(self, self.pen_name + "{:d}".format(curvenumber)),
-                                       symbolBrush=pg.mkBrush(self.colorpalette[curvenumber])))
+                 self.graphWidget.plot(symbol="o",
+                     name=self.legend_label_dict["curve{:d}".format(curvenumber)],
+                     pen=getattr(self, self.pen_name + "{:d}".format(curvenumber)),
+                     symbolBrush=pg.mkBrush(self.colorpalette[curvenumber])))
         # Now finally add the curve to the list of available curves
         self.PlotNumberChoice.addItem("{:d}".format(curvenumber))
         return True
         # TODO: Make sure to delete PlotNumberChoice entry when the clear command is issued
 
-    def _clear_curve(self,curvenumber: int) -> bool:
-        # TODO: check this function, not sure if it works good. The goal of this function though is to clear everything for an individual curve
-        # First we remove everything from the plot for this curve
-        if hasattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)):
-            #TODELETE
-            print("in GUI.py _clear_curve trying to remove errorbar_item")
-            #self.graphWidget.removeItem(getattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)))
-            getattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)).setData(pen=pg.mkPen(None))
-
+    def _clear_curve_data(self,curvenumber: int) -> bool:
+        """
+        This list self.all_instance_attribute_names should contain the string 
+        names of everything that each curve has, data and metadata for plotting 
+        and fitting. Now we just go through that list and delete all attributes
+        """
+        # somehow the legend has to be cleared first, and independently, 
+        # it cannot be removed just with delattr
         if hasattr(self,self.plot_line_name+"{:d}".format(curvenumber)):
-            #getattr(self,self.plot_line_name+"{:d}".format(curvenumber)).clear()
-            self.graphWidget.removeItem(getattr(self,self.plot_line_name+"{:d}".format(curvenumber)))
-        if hasattr(self, self.fitplot_line_name + "{:d}".format(curvenumber)):
-            #getattr(self, self.fitplot_line_name + "{:d}".format(curvenumber)).clear()
-            self.graphWidget.removeItem(getattr(self, self.fitplot_line_name + "{:d}".format(curvenumber)))
-        if hasattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)):
-            #TODELETE
-            print("in GUI.py _clear_curve trying to remove errorbar_item")
-            #self.graphWidget.removeItem(getattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)))
-            getattr(self, self.errorbar_item_name + "{:d}".format(curvenumber)).setData(bottom=0,
-                                                                                        top=0)
-
+            getattr(self,self.legend_item_name).removeItem(getattr(self,self.plot_line_name+"{:d}".format(curvenumber)))
         for entry in self.all_instance_attribute_names:
             if hasattr(self,entry+"{:d}".format(curvenumber)):
                 delattr(self,entry+"{:d}".format(curvenumber))
@@ -699,7 +691,7 @@ class MainWindow(QtGui.QMainWindow):
 
 
     #========= Functions associated with doClear method
-    # so far defined: "clear_data","clear_config","clear_everything","clear_plot"
+    # so far defined: "clear_data","clear_config","clear_everything","clear_plot","clear_replot"
     def clear_everything(self,dummyargument: str) -> bool:
         """
         Gets rid of all data that has been send to the fitter and plotter server
@@ -716,6 +708,8 @@ class MainWindow(QtGui.QMainWindow):
             False if an error occurred
 
         """
+        # NOTE: This function seems to work
+
         # we first check that the argument is correct
         if not isinstance(dummyargument,str):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_everything"))
@@ -725,27 +719,13 @@ class MainWindow(QtGui.QMainWindow):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_everything"))
             print("You supplied a non-empty sring as the function argument. Not doing anything. You must supply an empty string for this to work \n")
             return False
-
-        for idx in range(self.MAX_NUM_CURVES):
-            self._clear_curve(idx)
-        self.clear_plot("") # TODO! Make sure that this works correctly for clearing individual curves
-        getattr(self, self.legend_item_name).clear()
-        self.PlotNumberChoice.clear() # Clear all choices because there are no curves left at this point
+        self.clear_data("all")
+        self.clear_config("all")
         return True
-
-
-    def clear_plot(self,dummyargument: str):
-        """
-        This only clear the visual from the plot, it doesn't clear the saved data
-        """
-        self.graphWidget.clear()
-        self.arePlotsCleared = True
-        if hasattr(self, self.legend_item_name):
-            getattr(self, self.legend_item_name).clear()
 
     def clear_data(self,clear_data_arg: Union[int,str]) -> bool:
         """
-        Remove a particular unit of data from memory
+        Remove a particular unit of data from memory. By definition this also clears the plot, otherwise it would be weird to clear the data from memory but retain the plot corresponding to those data
         
         Clears whatever curve is asked, meaning the original data, fits. It also runs _register_available_curves
         at the end so as to make sure that the remaining curves are correctly registered and available for 
@@ -770,11 +750,10 @@ class MainWindow(QtGui.QMainWindow):
             return False
 
         if clear_data_arg == "all":
+            self.clear_plot(clear_data_arg) # We first have to clear the plots in this case
             for idx in range(self.MAX_NUM_CURVES):
-                self._clear_curve(idx)
-            self.clear_plot("") # TODO! Make sure that this works correctly for clearing individual curves
-            getattr(self, self.legend_item_name).clear()
-            self.PlotNumberChoice.clear() # Clear all choices because there are no curves left at this point
+                self._clear_curve_data(idx)
+            self._register_available_curves() # This has to be called anytime curves are deleted
             return True
 
         if not isinstance(clear_data_arg,int):
@@ -782,9 +761,105 @@ class MainWindow(QtGui.QMainWindow):
             print(
                 "You supplied something other than all or integer into clear_data. This command cannot be performed \n")
             return False
-
-        self._clear_curve(clear_data_arg)
+        self.clear_plot(clear_data_arg)
+        self._clear_curve_data(clear_data_arg)
         self._register_available_curves() # This will clear out the plot number choice box, and then register again what's left
+        return True
+
+    def clear_plot(self,clear_plot_arg: Union[int,str]):
+        """
+        
+        Clears the visual from the plot but does NOT clear the data from memory. 
+        The point is that one can in this way delete and put back the visuals of the 
+        curves, without deleting the data, so this is only for visualization
+        
+        Parameters
+        ----------
+        clear_plot_arg: int, str
+            If str, it must be "all", which will clear all plot
+            If int, it's the plot curve number that one wants to clear
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
+        if not isinstance(clear_plot_arg, (int,str)):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_plot"))
+            print("You supplied something other than an integer or string as the function argument. Not doing anything \n")
+            return False
+
+        if clear_plot_arg == "all":
+            for idx in range(self.MAX_NUM_CURVES):
+                if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
+                    getattr(self,self.plot_line_name+"{:d}".format(idx)).clear()
+                    getattr(self,self.errorbar_item_name+"{:d}".format(idx)).setData(pen="w") # NOTE: So far it's the best way I could find to temporarily not show the error bars: I just set them to be white. There seems to be no really better approach 
+
+            return True
+
+        if not isinstance(clear_plot_arg,int):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_plot"))
+            print(
+                "You supplied something other than all or integer into the function. This command cannot be performed \n")
+            return False
+        
+        # if we made it to here, this means that the clear_plot_arg is an integer
+        if hasattr(self,self.plot_line_name+"{:d}".format(clear_plot_arg)):
+            getattr(self,self.plot_line_name+"{:d}".format(clear_plot_arg)).clear()
+            getattr(self,self.errorbar_item_name+"{:d}".format(clear_plot_arg)).setData(pen="w") # NOTE: So far it's the best way I could find to temporarily not show the error bars: I just set them to be white. There seems to be no really better approach 
+        else:
+            print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "clear_plot"))
+            print("You requested to clear a non-existing plot. Doing nothing \n")
+        
+        return True
+
+    def clear_replot(self,clear_replot_arg: Union[int,str]):
+        """
+        
+        This is to replot things that have been cleared 
+        
+        Parameters
+        ----------
+        clear_replot_arg: int, str
+            If str, it must be "all", which will replot everything
+            If int, it's the plot curve number that one wants to replot
+            
+        Returns
+        -------
+        bool
+            True if the function finished correctly, False, if there was an error
+            Check error messages for explanations of errors
+        
+        """
+        if not isinstance(clear_replot_arg, (int,str)):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_replot"))
+            print("You supplied something other than an integer or string as the function argument. Not doing anything \n")
+            return False
+
+        if clear_replot_arg == "all":
+            for idx in range(self.MAX_NUM_CURVES):
+                if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
+                    getattr(self,self.plot_line_name+"{:d}".format(idx)).setData(x=getattr(self,self.xaxis_name+"{:d}".format(idx)),y=getattr(self,self.yaxis_name+"{:d}".format(idx)))
+                    getattr(self,self.errorbar_item_name+"{:d}".format(idx)).setData(pen=getattr(self,self.errorbar_pen_name+"{:d}".format(idx))) 
+
+            return True
+
+        if not isinstance(clear_replot_arg,int):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_replot"))
+            print(
+                "You supplied something other than all or integer into the function. This command cannot be performed \n")
+            return False
+        
+        # if we made it to here, this means that the clear_plot_arg is an integer
+        if hasattr(self,self.plot_line_name+"{:d}".format(clear_replot_arg)):
+            getattr(self,self.plot_line_name+"{:d}".format(clear_replot_arg)).setData(x=getattr(self.self.xaxis_name+"{:d}".format(clear_replot_arg)),y=getattr(self.self.yaxis_name+"{:d}".format(clear_replot_arg)))
+            getattr(self,self.errorbar_item_name+"{:d}".format(clear_replot_arg)).setData(pen=getattr(self,self.errorbar_pen_name+"{:d}".format(clear_replot_arg))) 
+        else:
+            print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "clear_replot"))
+            print("You requested to clear a non-existing plot. Doing nothing \n")
+        
         return True
 
     def clear_config(self,clear_config_arg: str) -> bool:
@@ -810,25 +885,30 @@ class MainWindow(QtGui.QMainWindow):
             print("You supplied something other than a string as the function argument. Not doing anything \n")
             return False
         if clear_config_arg == "all":
-            self.graphWidget.setLabel('bottom',text="")
-            self.graphWidget.setLabel('left',text="")
-            self.graphWidget.setTitle(title="")
+            for entry in self.all_config_names:
+                getattr(self,"set_"+helperfunctions.replace_capitals_by_underscorelowercase(entry))("")
+            return True
+        elif clear_config_arg in self.all_config_names:
+            getattr(self,"set_"+helperfunctions.replace_capitals_by_underscorelowercase(entry))("")
             return True
         else:
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_config"))
-            print("You supplied the string argument that is different from all. This is not yet implemented. Not doing anything \n")
+            print("Your argument into this function is not all or a name of the configuration that can be cleared, such as plotTitle, or axisLabels. Not doing anything \n")
             return False
+
     #End of functions associated with doClear
     #=========================================          
 
-    def set_axis_labels(self,axis_labels_arg: List[str]) -> bool:
+    def set_axis_labels(self,axis_labels_arg: Union[str,List[str]]) -> bool:
         """
         Puts x-axis label (below) and y-axis label (left)
         
         Parameters
         ----------
-        axis_labels_arg: list of two strings
+        axis_labels_arg: list of two strings, or a single empty string
             The first string is the a-axis label, the second string is the y-axis label
+            Alternatively a single empty string can be used to signify that we want 
+            to delete all labels 
             
         Returns
         -------
@@ -837,17 +917,29 @@ class MainWindow(QtGui.QMainWindow):
             Check error messages for explanations of errors
         
         """
-        if len(axis_labels_arg) != 2:
-            print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_axis_labels"))
-            print("You supplied something other than 2 arguments to this function. This is not allowed, you must supply a list of exactly 2 strings, for x-label and y-label. Not doing anything")
-            return False
-        if all([isinstance(entry,str) for entry in axis_labels_arg]):
-            self.graphWidget.setLabels(bottom=axis_labels_arg[0],left=axis_labels_arg[1])
-            return True
-        else:
-            print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_axis_labels"))
-            print("You supplied two arguments, but at least one is not of type str. This is not allowed. Not doing anything.")
-            return False
+        if isinstance(axis_labels_arg,str):
+            if len(axis_labels_arg.strip()) == 0:
+                self.graphWidget.setLabels(bottom="",left="")
+                return True
+            else:
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_axis_labels"))
+                print("You supplied a single argument, which is only possible if you supply an empty string, which means then deleting all labels. You supplied something other than an empty string. Not doing anything \n")
+                return False
+
+        if isinstance(axis_labels_arg,list) and (len(axis_labels_arg) == 2):
+            if all([isinstance(entry,str) for entry in axis_labels_arg]):
+                self.graphWidget.setLabels(bottom=axis_labels_arg[0],left=axis_labels_arg[1])
+                return True
+            else:
+                print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_axis_labels"))
+                print("You supplied two arguments, but at least one is not of type str. This is not allowed. Not doing anything. \n")
+                return False
+        
+        # if we are here, that means that we have not one and not two arguments, this is not possible
+        print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_axis_labels"))
+        print("You supplied something other than 1 or 2 arguments to this function. This is not allowed, you must supply either a list of two strings, or one empty string \n")
+        return False
+
 
     def set_plot_title(self,plot_title_arg: str) -> bool:
         """
@@ -869,7 +961,7 @@ class MainWindow(QtGui.QMainWindow):
             return True
         else:
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_plot_title"))
-            print("You supplied something other than 1 argument into this function, or the argument is not a string. Not doing anything")
+            print("You supplied something other than 1 argument into this function, or the argument is not a string. Not doing anything \n")
             return False
     
     def set_plot_legend(self,set_plot_legend_arg: dict) -> bool:
@@ -902,7 +994,7 @@ class MainWindow(QtGui.QMainWindow):
                 for key in set_plot_legend_arg:
                     if (not isinstance(key,str)) or (not isinstance(set_plot_legend_arg[key],str)):
                         print("Message from Class {:s} function {:s}".format(self.__class__.__name__,"set_plot_legend"))
-                        print("You inserted a key-value pair where one of the elements is not a string: {} : {}. This is not allowed, deleting this key-value pair".format(key,set_plot_legend_arg[key]))
+                        print("You inserted a key-value pair where one of the elements is not a string: {} : {}. This is not allowed, deleting this key-value pair \n".format(key,set_plot_legend_arg[key]))
                         set_plot_legend_arg.pop(key)
                 # and once we deleted all the non-string inputs, we can save the dictionary
                 self.legend_label_dict = set_plot_legend_arg
@@ -910,9 +1002,7 @@ class MainWindow(QtGui.QMainWindow):
             return True
         else:
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_plot_legend"))
-            print("The parameter that you gave into set_plot_legend is not a dictionary. This is not allowed, erasing legends")
-            self.legend_label_dict = {}
-            self.legend_label_list = []
+            print("The parameter that you gave into set_plot_legend is not a dictionary. This is not allowed, not doing anything \n")
             return False
 
     def set_fit_function(self,fit_function_name: str) -> bool:

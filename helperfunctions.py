@@ -46,5 +46,19 @@ def send_TCPIP_message(socket_to_send,message_string,isPreamblePresent,encoding 
         message_encoded = message_string.encode(encoding = encoding)
         socket_to_send.sendall(message_encoded)
 
+def replace_capitals_by_underscorelowercase(keystring: str) -> str:
+    """
+    This function replaces uppercase letters by lowercase ones 
+    and inserts an underscore before each letter that used to be 
+    uppercase
+    """
+    newstring = ""
+    for letter in keystring:
+        if letter.isupper():
+            newstring += "_"
+            newstring += letter.lower()
+        else:
+            newstring += letter
+    return newstring
 
 

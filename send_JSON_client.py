@@ -53,16 +53,55 @@ def generate_experimental_datalist(path,column):
     result = list(zip(independentvar,dependentvar,errorvar))
     return result
     
-
+MessageDicts = {}
 
 
 mymethod = "doClear"
-myparams = {"clearData": 1}
+myparams = {"everything": ""}
 mymessagedict = {"jsonrpc":"2.0", 
                  "method":mymethod,
                  "params":myparams,
                  "id":1}
-#print(mymessagedict)
+MessageDicts["cleareverything"] = mymessagedict
+mymethod = "doClear"
+myparams = {"replot": "all"}
+mymessagedict = {"jsonrpc":"2.0", 
+                 "method":mymethod,
+                 "params":myparams,
+                 "id":1}
+MessageDicts["replotall"] = mymessagedict
+
+mymethod = "doClear"
+myparams = {"plot": 1}
+mymessagedict = {"jsonrpc":"2.0", 
+                 "method":mymethod,
+                 "params":myparams,
+                 "id":1}
+MessageDicts["clearplot1"] = mymessagedict
+
+mymethod = "doClear"
+myparams = {"config": "all"}
+mymessagedict = {"jsonrpc":"2.0", 
+                 "method":mymethod,
+                 "params":myparams,
+                 "id":1}
+MessageDicts["clearConfig"] = mymessagedict
+
+mymethod = "doClear"
+myparams = {"data": "all"}
+mymessagedict = {"jsonrpc":"2.0", 
+                 "method":mymethod,
+                 "params":myparams,
+                 "id":1}
+MessageDicts["cleardataall"] = mymessagedict
+
+mymethod = "doClear"
+myparams = {"data": 1}
+mymessagedict = {"jsonrpc":"2.0", 
+                 "method":mymethod,
+                 "params":myparams,
+                 "id":1}
+MessageDicts["cleardata1"] = mymessagedict
 
 mymethod3 = "addData"
 myparams3 = {"dataPoint":{"curveNumber":5,"xval":0.2,
@@ -81,6 +120,8 @@ mymessagedict2 = {"jsonrpc":"2.0",
                  "params":myparams2,
                  "id":1}
 #print(mymessagedict2)
+
+MessageDicts["setConfig"] = mymessagedict2
 
 xr = np.random.rand(100)*50
 
@@ -101,6 +142,8 @@ mymessagedict4 = {"jsonrpc":"2.0",
                  "method":mymethod4,
                  "params":myparams4,
                  "id":1}
+
+MessageDicts["generatedData"] = mymessagedict4
 
 mymethod5 = "doFit"
 myparams5 = {"fitFunction":"sinewave",
@@ -165,17 +208,33 @@ mymessagedict7 = {"jsonrpc":"2.0",
 #                 "params":myparams9,
 #                 "id":1}
 
-path = r"\\fs01\oonishch$\Downloads\autocalibtestdata\restrackingeasy"
-datalist = generate_experimental_datalist(path, 22) # 20 corresponds to the yellow line, 22 corresponds to the phase plot, where we need to find zero
+
+#path = r"\\fs01\oonishch$\Downloads\autocalibtestdata\restrackingeasy"
+path = r"C:\Users\Oleksiy\Documents\UniMainz\PhononFit\testdata\ResTrackData\00"
+datalist = generate_experimental_datalist(path, 20) # 20 corresponds to the yellow line, 22 corresponds to the phase plot, where we need to find zero
+
 datapts = [{"curveNumber":1,"xval":x[0],
                             "yval":x[1],"yerr":x[2]} for x in datalist]
-mymethod9 = "addData"
-myparams9 = {"pointList":datapts}
-mymessagedict9 = {"jsonrpc":"2.0", 
-                 "method":mymethod9,
-                 "params":myparams9,
+mymethod = "addData"
+myparams = {"pointList":datapts}
+mymessagedict = {"jsonrpc":"2.0", 
+                 "method":mymethod,
+                 "params":myparams,
                  "id":1}
+MessageDicts["restrack1"] = mymessagedict
 
+datalist = generate_experimental_datalist(path, 22) # 20 corresponds to the yellow line, 22 corresponds to the phase plot, where we need to find zero
+datapts = [{"curveNumber":2,"xval":x[0],
+                            "yval":x[1],"yerr":x[2]} for x in datalist]
+mymethod = "addData"
+myparams = {"pointList":datapts}
+mymessagedict = {"jsonrpc":"2.0", 
+                 "method":mymethod,
+                 "params":myparams,
+                 "id":1}
+MessageDicts["restrack2"] = mymessagedict
+
+        
 
 
 mymethod10 = "doFit"
@@ -251,7 +310,9 @@ mymessagedict14 = {"jsonrpc":"2.0",
                  "id":1}
 
 
-r1 = json.dumps(mymessagedict14)
+
+r1 = json.dumps(MessageDicts["cleardata1"])
+
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)
 

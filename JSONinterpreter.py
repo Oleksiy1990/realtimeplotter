@@ -8,6 +8,7 @@ Created on Mon Aug 24 14:27:15 2020
 import re
 import json
 from typing import Union, Optional, Tuple, List, Any
+from helperfunctions import replace_capitals_by_underscorelowercase as repcap
 
 class JSONread():
     """ 
@@ -34,7 +35,7 @@ class JSONread():
     that can vary, and that will be written in the manual
     """
     # options to put as params keys for doClear method
-    doClear_message_keys = ["everything","config","data","plot"]
+    doClear_message_keys = ["everything","config","data","plot","replot"]
 
     # options to put as params keys for setConfig method
     setConfig_message_keys = ["axisLabels",
@@ -121,22 +122,6 @@ class JSONread():
         else:
             return (True,message_dictionary)
 
-    def __message_key_to_function_name(self, keystring: str) -> str:
-        """
-        This function replaces uppercase letters by lowercase ones 
-        and inserts an underscore before each letter that used to be 
-        uppercase
-        """
-        newstring = ""
-        for letter in keystring:
-            if letter.isupper():
-                newstring += "_"
-                newstring += letter.lower()
-            else:
-                newstring += letter
-
-        return newstring
-
     def __parse_doClear_message(self,messagedict: dict) -> List[Tuple[str,Any]]:
         """
         We want to output a list of tuples. The first element in each tuple is the 
@@ -184,7 +169,7 @@ class JSONread():
             if keystring in params_dict.keys():
                 data = params_dict[keystring]
                 # we have to append this "set_" because that's what the functions are called in the main program
-                output.append(("set_"+self.__message_key_to_function_name(keystring),data))
+                output.append(("set_"+repcap(keystring),data))
                 params_dict.pop(keystring)
         if not output: # this will evaluate to False if output is empty 
             print("Message from Module {:s}, Class {:s} function {:s} :".format(__name__,
@@ -244,7 +229,7 @@ class JSONread():
                 data = params_dict[keystring]
                 # We have to append "set_" before every function name because that's how
                 # it's done in the main program
-                output.append(("set_"+self.__message_key_to_function_name(keystring), data))
+                output.append(("set_"+repcap(keystring), data))
                 params_dict.pop(keystring)
         if not output:  # this will evaluate to False if output is empty
             print("Message from Module {:s}, Class {:s} function {:s} :".format(__name__,
