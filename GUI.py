@@ -94,6 +94,7 @@ class MainWindow(QtGui.QMainWindow):
     MAX_NUM_CURVES = 50 # This is a large upper limit on the max number of curves that
                         # can be plotted at the same time
     NUMPOINTS_CURVE_DENSE = 350
+    PARAMETERS_doClear = JSONread.doClear_message_keys 
 
     def __init__(self, aTCPIPserver):
 
@@ -180,23 +181,28 @@ class MainWindow(QtGui.QMainWindow):
         setattr(self, self.legend_item_name, self.graphWidget.addLegend())
         mainwindow_layout.addWidget(self.graphWidget)
 
-        # Two buttons right below the plot: Clear plot and clear data
-        self.ClearPlotButton = QtGui.QPushButton("Clear plot")
-        self.ClearDataButton = QtGui.QPushButton("Clear data")
-        self.ClearPlotButton.clicked.connect(partial(self.clear_plot,""))
-        self.ClearDataButton.clicked.connect(partial(self.clear_data,"all"))
+        self.RegisterCurvesButton = QtGui.QPushButton("Reg. cv.")
+        self.RegisterCurvesButton.clicked.connect(self._register_available_curves)
+        self.ClearButton = QtGui.QPushButton("Clear")
+        self.ClearButtonOption = QtGui.QComboBox() # this defines what clearing action will be taken
+        self.ClearButtonTarget = QtGui.QComboBox() # the curve to clear, _register_available_curves adds the curves to it
+        self.ClearButtonTarget.addItem("all") # all must be added here, it is not added via _register_available_curves
+        self.ClearButtonOption.addItems(self.PARAMETERS_doClear)
+        #self.ClearDataButton = QtGui.QPushButton("Clear data")
+        
+        self.ClearButton.clicked.connect(self._process_clearbutton_call)
         
         ClearPlotAndDataBox = QtGui.QHBoxLayout()
-        ClearPlotAndDataBox.addWidget(self.ClearPlotButton)
-        ClearPlotAndDataBox.addWidget(self.ClearDataButton)
+        ClearPlotAndDataBox.addWidget(self.ClearButton)
+        ClearPlotAndDataBox.addWidget(self.ClearButtonOption)
+        ClearPlotAndDataBox.addWidget(self.RegisterCurvesButton)
+        ClearPlotAndDataBox.addWidget(self.ClearButtonTarget)
         mainwindow_layout.addLayout(ClearPlotAndDataBox) # so we can keep adding widgets as we go, they will be added below in vertical box layout, because the main layout is defined to be the vertical box layout
         
        
         # Next row in the GUI: buttons controls related to making the fit
         self.MakeFitButton = QtGui.QPushButton("Do fit")
         self.PrefitButton = QtGui.QPushButton("Prefit")
-        self.RegisterCurvesButton = QtGui.QPushButton("Reg. cv.")
-        self.RegisterCurvesButton.clicked.connect(self._register_available_curves)
         self.MakeFitButton.clicked.connect(self.process_makefit_button)
         self.PrefitButton.clicked.connect(self.process_Prefit_button)
         
@@ -263,6 +269,17 @@ class MainWindow(QtGui.QMainWindow):
         self.client_communication_socket = None # This will be the socket to use for sending data to the client
 
     ###### End of __init__()
+
+    def _process_clearbutton_call(self):
+        function_string_name = self.ClearButtonOption.currentText()
+        parameter_string_name = self.ClearButtonTarget.currentText()
+        callable_function = getattr(self,"clear_"+function_string_name)
+        if parameter_string_name == "all":
+            callable_function(parameter_string_name)
+        else:
+            callable_function(int(parameter_string_name))
+
+
     def _register_client_communication_socket(self, socket_arg: socket.socket) -> bool:
         if not isinstance(socket_arg,(socket.socket,type(None))):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "_register_client_communication_socket"))
@@ -310,6 +327,28 @@ class MainWindow(QtGui.QMainWindow):
         for idx in range(self.MAX_NUM_CURVES):
             if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
                 self.PlotNumberChoice.addItem("{:d}".format(idx))        
+                self.ClearButtonTarget.addItem("{:d}".format(idx)) 
+
+    def _generate_fit_dataset(self,a_fitmodel_instance_stringname) -> tuple:
+        """
+        Takes the string name of a fit model instance and generated the 
+        dense points based on evaluating results of the fit
+
+        Returns:
+        a tuple of two numpy arrays, the first are the dense xvals, the 
+        second is the evaluated fit at those xvals
+        """
+        aXvalsDense = np.linspace(getattr(self,a_fitmodel_instance_stringname).xvals[0],
+                getattr(self,a_fitmodel_instance_stringname).xvals[-1],
+                self.NUMPOINTS_CURVE_DENSE)
+        fitresults_list = list(getattr(self,
+                a_fitmodel_instance_stringname).result_paramdict.values())
+        fitfunction_callable = getattr(fitmodels,
+                getattr(self,
+                    a_fitmodel_instance_stringname).fitfunction_name_string+"_base")
+        aYvalsDense = fitfunction_callable(fitresults_list,aXvalsDense)
+        return (aXvalsDense,aYvalsDense)
+
 
     def process_makefit_button(self) -> bool:
 
@@ -318,20 +357,24 @@ class MainWindow(QtGui.QMainWindow):
             self.prefitDialogWindow.close()
 
         current_curve_number = int(self.PlotNumberChoice.currentText())
-        if not hasattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)):
+        # the next is the stringname of the current fit_model in use, this
+        # is then used in conjunction with getattr, setattr, etc.
+        fitmodel_instance_stringname = self.fitmodel_instance_name+"{:d}".format(current_curve_number)
+
+        if not hasattr(self,fitmodel_instance_stringname):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_makefit_button"))
             print("You put a curve number that is not an integer. This is not allowed")
             return False
         # Now comes the fitting part
         # 1) Create a fitter instance
-        currentFitter = GeneralFitter1D(getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)))
+        currentFitter = GeneralFitter1D(getattr(self,fitmodel_instance_stringname))
         # 2) setup fit
         result_setupfit = currentFitter.setup_fit()
 
         if result_setupfit is True:
             # 3) perform the fit
             result_dofit = currentFitter.do_fit()
-            if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).result_objectivefunction == -1:
+            if getattr(self,fitmodel_instance_stringname).result_objectivefunction == -1:
                 result_regularplot = False
             else:
                 result_regularplot = True
@@ -342,16 +385,7 @@ class MainWindow(QtGui.QMainWindow):
 
         if (result_dofit is True) and (result_regularplot is True):
             # 4) If the fit result is good, according to the fitter message, we want to plot it
-            if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).is_fit_successful is True:
-                aXvalsDense = np.linspace(getattr(self,
-                        self.fitmodel_instance_name+"{:d}".format(current_curve_number)).xvals[0],
-                        getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).xvals[-1],
-                        self.NUMPOINTS_CURVE_DENSE)
-                fitresults_list = list(getattr(self,
-                        self.fitmodel_instance_name+"{:d}".format(current_curve_number)).result_paramdict.values())
-                fitfunction_callable = getattr(fitmodels,
-                        getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).fitfunction_name_string+"_base")
-                aYvalsDense = fitfunction_callable(fitresults_list,aXvalsDense)
+            if getattr(self,fitmodel_instance_stringname).is_fit_successful is True:
                 # Now we remove the original line connecting the points but replot
                 #the points themselves, and then plot the dashed line for the fit
                 #through the same point, in the same color as the points
@@ -385,7 +419,7 @@ class MainWindow(QtGui.QMainWindow):
                     self.graphWidget.plot(symbol=None,
                         pen=getattr(self,"pen{:d}".format(current_curve_number)),
                         symbolBrush = pg.mkBrush(None)))
-                getattr(self,self.fitplot_line_name+"{:d}".format(current_curve_number)).setData(aXvalsDense,aYvalsDense)
+                getattr(self,self.fitplot_line_name+"{:d}".format(current_curve_number)).setData(*self._generate_fit_dataset(fitmodel_instance_stringname))
 
                 #============= Ok by here we should be done with the actual plotting of the fit
 
@@ -841,7 +875,10 @@ class MainWindow(QtGui.QMainWindow):
         if clear_replot_arg == "all":
             for idx in range(self.MAX_NUM_CURVES):
                 if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
-                    getattr(self,self.plot_line_name+"{:d}".format(idx)).setData(x=getattr(self,self.xaxis_name+"{:d}".format(idx)),y=getattr(self,self.yaxis_name+"{:d}".format(idx)))
+                    getattr(self,self.plot_line_name+"{:d}".format(idx)).setData(*self.convert_to_numpy(getattr(self,self.xaxis_name+"{:d}".format(idx)),getattr(self,self.yaxis_name+"{:d}".format(idx))))
+                if hasattr(self,self.fitplot_line_name+"{:d}".format(idx)):
+                    getattr(self,self.fitplot_line_name+"{:d}".format(idx)).setData(*self._generate_fit_dataset(fitmodel_instance_name+"{:d}".format(idx)))
+                if hasattr(self,self.errorbar_item_name+"{:d}".format(idx)):
                     getattr(self,self.errorbar_item_name+"{:d}".format(idx)).setData(pen=getattr(self,self.errorbar_pen_name+"{:d}".format(idx))) 
 
             return True
@@ -852,13 +889,16 @@ class MainWindow(QtGui.QMainWindow):
                 "You supplied something other than all or integer into the function. This command cannot be performed \n")
             return False
         
-        # if we made it to here, this means that the clear_plot_arg is an integer
+        # if we made it to here, this means that the clear_replot_arg is an integer
         if hasattr(self,self.plot_line_name+"{:d}".format(clear_replot_arg)):
-            getattr(self,self.plot_line_name+"{:d}".format(clear_replot_arg)).setData(x=getattr(self.self.xaxis_name+"{:d}".format(clear_replot_arg)),y=getattr(self.self.yaxis_name+"{:d}".format(clear_replot_arg)))
-            getattr(self,self.errorbar_item_name+"{:d}".format(clear_replot_arg)).setData(pen=getattr(self,self.errorbar_pen_name+"{:d}".format(clear_replot_arg))) 
+            getattr(self,self.plot_line_name+"{:d}".format(clear_replot_arg)).setData(*self.convert_to_numpy(getattr(self,self.xaxis_name+"{:d}".format(clear_replot_arg)),getattr(self,self.yaxis_name+"{:d}".format(clear_replot_arg))))
         else:
             print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "clear_replot"))
             print("You requested to clear a non-existing plot. Doing nothing \n")
+        if hasattr(self,self.fitplot_line_name+"{:d}".format(clear_replot_arg)):
+            getattr(self,self.fitplot_line_name+"{:d}".format(clear_replot_arg)).setData(*self._generate_fit_dataset(fitmodel_instance_name+"{:d}".format(clear_replot_arg)))
+        if hasattr(self,self.errorbar_item_name+"{:d}".format(clear_replot_arg)):
+            getattr(self,self.errorbar_item_name+"{:d}".format(clear_replot_arg)).setData(pen=getattr(self,self.errorbar_pen_name+"{:d}".format(clear_replot_arg))) 
         
         return True
 
