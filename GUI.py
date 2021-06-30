@@ -324,6 +324,8 @@ class MainWindow(QtGui.QMainWindow):
     # TODO: Get rid of this function and button correctly. They are registered immediately as they come in.
     def _register_available_curves(self) -> None:
         self.PlotNumberChoice.clear()
+        self.ClearButtonTarget.clear()
+        self.ClearButtonTarget.addItem("all")
         for idx in range(self.MAX_NUM_CURVES):
             if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
                 self.PlotNumberChoice.addItem("{:d}".format(idx))        
@@ -749,6 +751,10 @@ class MainWindow(QtGui.QMainWindow):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_everything"))
             print("You supplied something other than a string as the function argument. Not doing anything \n")
             return False
+        # this is now to be able to receive the "all" option from the 
+        # GUI without causing errors
+        if dummyargument == "all": 
+            dummyargument = ""
         if len(dummyargument.strip()) > 0: 
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_everything"))
             print("You supplied a non-empty sring as the function argument. Not doing anything. You must supply an empty string for this to work \n")
