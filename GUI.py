@@ -184,28 +184,27 @@ class MainWindow(QtGui.QMainWindow):
         self.RegisterCurvesButton = QtGui.QPushButton("Reg. cv.")
         self.RegisterCurvesButton.clicked.connect(self._register_available_curves)
         self.ClearButton = QtGui.QPushButton("Clear")
+        self.ClearButton.clicked.connect(self._process_clearbutton_call)
         self.ClearButtonOption = QtGui.QComboBox() # this defines what clearing action will be taken
         self.ClearButtonTarget = QtGui.QComboBox() # the curve to clear, _register_available_curves adds the curves to it
         self.ClearButtonTarget.addItem("all") # all must be added here, it is not added via _register_available_curves
         self.ClearButtonOption.addItems(self.PARAMETERS_doClear)
-        #self.ClearDataButton = QtGui.QPushButton("Clear data")
         
-        self.ClearButton.clicked.connect(self._process_clearbutton_call)
         
         ClearPlotAndDataBox = QtGui.QHBoxLayout()
         ClearPlotAndDataBox.addWidget(self.ClearButton)
         ClearPlotAndDataBox.addWidget(self.ClearButtonOption)
         ClearPlotAndDataBox.addWidget(self.RegisterCurvesButton)
         ClearPlotAndDataBox.addWidget(self.ClearButtonTarget)
-        mainwindow_layout.addLayout(ClearPlotAndDataBox) # so we can keep adding widgets as we go, they will be added below in vertical box layout, because the main layout is defined to be the vertical box layout
+        mainwindow_layout.addLayout(ClearPlotAndDataBox) 
+        # Up to now we have added the GUI line required to clear the plots
         
        
         # Next row in the GUI: buttons controls related to making the fit
         self.MakeFitButton = QtGui.QPushButton("Do fit")
         self.PrefitButton = QtGui.QPushButton("Prefit")
         self.MakeFitButton.clicked.connect(self.process_makefit_button)
-        self.PrefitButton.clicked.connect(self.process_Prefit_button)
-        
+        self.PrefitButton.clicked.connect(self.process_prefit_button)
         self.FitFunctionChoice = QtGui.QComboBox()
         self.PlotNumberChoice = QtGui.QComboBox()
         self.FitFunctionChoice.addItems(self.DEFINED_FITFUNCTIONS)
@@ -213,13 +212,13 @@ class MainWindow(QtGui.QMainWindow):
         MakeFitBoxLayout = QtGui.QHBoxLayout()
         MakeFitBoxLayout.addWidget(self.MakeFitButton)
         MakeFitBoxLayout.addWidget(self.PrefitButton)
-        MakeFitBoxLayout.addWidget(self.RegisterCurvesButton)
+        MakeFitBoxLayout.addWidget(self.RegisterCurvesButton) # for some reason this does not get added
         MakeFitBoxLayout.addWidget(self.FitFunctionChoice)
         MakeFitBoxLayout.addWidget(self.PlotNumberChoice)
         mainwindow_layout.addLayout(MakeFitBoxLayout)
        
         #First we create a layout into which we will put widgets
-        CropBoxLayout =QtGui.QHBoxLayout() 
+        CropBoxLayout = QtGui.QHBoxLayout() 
         #create the widgets themselves, and set their properties
         self.DoCropButton = QtGui.QPushButton("Crop data")
         self.CropLowerLimit = QtGui.QLineEdit()
@@ -363,10 +362,10 @@ class MainWindow(QtGui.QMainWindow):
         # is then used in conjunction with getattr, setattr, etc.
         fitmodel_instance_stringname = self.fitmodel_instance_name+"{:d}".format(current_curve_number)
 
+        # this is mostly for manual fitting, because then there is no remote commant sent "set_curve_number". so this needs to be done here
         if not hasattr(self,fitmodel_instance_stringname):
-            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_makefit_button"))
-            print("You put a curve number that is not an integer. This is not allowed")
-            return False
+            self.set_curve_number(current_curve_number)
+        
         # Now comes the fitting part
         # 1) Create a fitter instance
         currentFitter = GeneralFitter1D(getattr(self,fitmodel_instance_stringname))
@@ -473,37 +472,34 @@ class MainWindow(QtGui.QMainWindow):
             return False
 
     # TODO Somehow prefit seems to not accept it when the initial parameter is set to 0. Check that out
-    def process_Prefit_button(self):
-        result_check_settings = self.checkAndReturnDataPrefit()
-        if result_check_settings:
-            # get the current name of the fit function and the curve number to fit
-            #remember that FitFunctionChoice and PlotNumberChoice are the GUI 
-            #QComboBox widgets
-            fitfunction_name = self.FitFunctionChoice.currentText()
-            curve_number = int(self.PlotNumberChoice.currentText())
+    def process_prefit_button(self) -> bool:
+        # get the current name of the fit function and the curve number to fit
+        fitfunction_name = self.FitFunctionChoice.currentText()
+        curve_number = int(self.PlotNumberChoice.currentText())
+        if not (hasattr(self,self.xaxis_name+"{:d}".format(curve_number)) and hasattr(self,self.yaxis_name+"{:d}".format(curve_number))):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_prefit_button"))
+            print("The data for the curve that you are asking to prefit does not exist. You probably deleted it already. Not doing anything \n")
+            return False
 
-            # if the fitmodel_instance already exists, check if the required 
-            #fit function is the same as is in the existing fitmodel_instance.
-            #If not, delete fitmodel_instance and start again
-            #if fitmodel_instance does not exist, then create it
-            if hasattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)):
-                if getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fitfunction_name_string != fitfunction_name:
-                    print("Message from Class {:s} function process_Prefit_button: you changed the fit function for the curve which you already tried to process in prefit. Erasing all previous prefit parameters".format(self.__class__.__name__))
-                    delattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number))
-                    setattr(self,
-                        self.fitmodel_instance_name+"{:d}".format(curve_number),
-                        Fitmodel(fitfunction_name,curve_number,
-                            *result_check_settings))
-                else:
-                    pass
-            else:
+        # if the fitmodel_instance already exists, check if the required 
+        #fit function is the same as is in the existing fitmodel_instance.
+        #If not, delete fitmodel_instance and start again
+        #if fitmodel_instance does not exist, then create it
+        if hasattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)):
+            if getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fitfunction_name_string != fitfunction_name:
+                print("Note from Class {:s} function process_prefit_button: you changed the fit function for the curve which you already tried to process in prefit. Erasing all previous prefit parameters".format(self.__class__.__name__))
+                delattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number))
                 setattr(self,
-                        self.fitmodel_instance_name+"{:d}".format(curve_number),
-                    Fitmodel(fitfunction_name,
-                        curve_number,*result_check_settings))
+                    self.fitmodel_instance_name+"{:d}".format(curve_number),
+                    Fitmodel(fitfunction_name,curve_number,
+                        *result_check_settings))
+            else:
+                pass
         else:
-            print("Message from function process_Prefit_button: checkAndReturnDataPrefit function failed, check out its error messages and input data")
-            return None
+            setattr(self,
+                    self.fitmodel_instance_name+"{:d}".format(curve_number),
+                Fitmodel(fitfunction_name,
+                    curve_number,*result_check_settings))
        
         # Now we create the actual prefit dialog window (popup) 
         # If prefitDialogWindow does not exist, we have to create it
@@ -1263,7 +1259,7 @@ class MainWindow(QtGui.QMainWindow):
         # make sure that croplimits is a list
         if not isinstance(croplimits_arg, list):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_crop_limits"))
-            print("You put something other than a list as crop limits. This is not allowed, not setting any crop limits")
+            print("You put something other than a list as crop limits. This is not allowed, not setting any crop limits \n")
             return False
         # Check if the list contains two elements and if they are numbers
 
