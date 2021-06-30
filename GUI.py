@@ -481,25 +481,16 @@ class MainWindow(QtGui.QMainWindow):
             print("The data for the curve that you are asking to prefit does not exist. You probably deleted it already. Not doing anything \n")
             return False
 
-        # if the fitmodel_instance already exists, check if the required 
-        #fit function is the same as is in the existing fitmodel_instance.
-        #If not, delete fitmodel_instance and start again
-        #if fitmodel_instance does not exist, then create it
-        if hasattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)):
-            if getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fitfunction_name_string != fitfunction_name:
-                print("Note from Class {:s} function process_prefit_button: you changed the fit function for the curve which you already tried to process in prefit. Erasing all previous prefit parameters".format(self.__class__.__name__))
-                delattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number))
-                setattr(self,
-                    self.fitmodel_instance_name+"{:d}".format(curve_number),
-                    Fitmodel(fitfunction_name,curve_number,
-                        *result_check_settings))
-            else:
-                pass
-        else:
-            setattr(self,
-                    self.fitmodel_instance_name+"{:d}".format(curve_number),
-                Fitmodel(fitfunction_name,
-                    curve_number,*result_check_settings))
+        # create Fitmodel if it doesn't exist and set the fit function name 
+        # to the appropriate one now
+        current_fitmodel_string = self.fitmodel_instance_name+"{:d}".format(curve_number)
+        if not hasattr(self,current_fitmodel_string):
+            self.set_curve_number(curve_number)
+            
+        # reset here the fit function name in case it changed, and 
+        # also the param dictionaries so that we can distinguish between 
+        # keeping old params, and completely resetting params if the model changed
+        getattr(self,current_fitmodel_string).fitfunction_name_string = fitfunction_name
        
         # Now we create the actual prefit dialog window (popup) 
         # If prefitDialogWindow does not exist, we have to create it
