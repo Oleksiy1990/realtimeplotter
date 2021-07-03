@@ -474,36 +474,41 @@ class MainWindow(QtGui.QMainWindow):
     # TODO Somehow prefit seems to not accept it when the initial parameter is set to 0. Check that out
     def process_prefit_button(self) -> bool:
         # get the current name of the fit function and the curve number to fit
-        fitfunction_name = self.FitFunctionChoice.currentText()
-        curve_number = int(self.PlotNumberChoice.currentText())
-        if not (hasattr(self,self.xaxis_name+"{:d}".format(curve_number)) and hasattr(self,self.yaxis_name+"{:d}".format(curve_number))):
+        this_fitfunction_name = self.FitFunctionChoice.currentText()
+        this_curve_number = int(self.PlotNumberChoice.currentText())
+        if not (hasattr(self,self.xaxis_name+"{:d}".format(this_curve_number)) and hasattr(self,self.yaxis_name+"{:d}".format(this_curve_number))):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_prefit_button"))
             print("The data for the curve that you are asking to prefit does not exist. You probably deleted it already. Not doing anything \n")
             return False
 
-        # create Fitmodel if it doesn't exist and set the fit function name 
-        # to the appropriate one now
-        current_fitmodel_string = self.fitmodel_instance_name+"{:d}".format(curve_number)
-        if not hasattr(self,current_fitmodel_string):
-            self.set_curve_number(curve_number)
-            
-        # reset here the fit function name in case it changed, and 
-        # also the param dictionaries so that we can distinguish between 
-        # keeping old params, and completely resetting params if the model changed
-        getattr(self,current_fitmodel_string).fitfunction_name_string = fitfunction_name
-       
+
+        # ============= Here we make sure to initialize the fit model or reinitialize it in case the fit function name changed, in which case all parameters are completely different
+        fitmodel_instance_stringname = self.fitmodel_instance_name + "{:d}".format(this_curve_number)
+        if hasattr(self,fitmodel_instance_stringname):
+            if getattr(self,fitmodel_instance_stringname).fitfunction_name_string != this_fitfunction_name:
+                self.set_curve_number(this_curve_number)
+        if not hasattr(self,fitmodel_instance_stringname):
+            self.set_curve_number(this_curve_number)
+        #===================== Done initializing fit model    
+
         # Now we create the actual prefit dialog window (popup) 
         # If prefitDialogWindow does not exist, we have to create it
+        # we feed a Fitmodel instance into the prefitter dialog
         if self.prefitDialogWindow is None: 
             self.prefitDialogWindow = PrefitterDialog(getattr(self,
-                self.fitmodel_instance_name+"{:d}".format(curve_number)))
+                fitmodel_instance_stringname),this_curve_number)
         #otherwise we close and open it again with the correct prefitter
         else:
             self.prefitDialogWindow.close()
             self.prefitDialogWindow = PrefitterDialog(getattr(self,
-                self.fitmodel_instance_name+"{:d}".format(curve_number)))
-        
-        self.prefitDialogWindow.show()
+                fitmodel_instance_stringname),this_curve_number)
+        if self.prefitDialogWindow is not None: 
+            self.prefitDialogWindow.show()
+            return True
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_prefit_button"))
+            print("Prefit dialog window did not open. This is probably because some data preprocessing failed when it tried to create the prefit dialog window. Not doing anything \n")
+            return False
 
     def process_Crop_button(self):
         try:

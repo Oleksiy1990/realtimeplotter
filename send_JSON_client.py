@@ -125,10 +125,10 @@ MessageDicts["setConfig"] = mymessagedict2
 
 xr = np.random.rand(100)*50
 
-datapts = [{"curveNumber":1,"xval":x,
+datapts = [{"curveNumber":3,"xval":x,
                             "yval":np.sin(3*x) + random.random()-0.5,"yerr":0.05} for x in xr]
 
-datapts_Gaussian = [{"curveNumber":1,"xval":x,
+datapts_Gaussian = [{"curveNumber":3,"xval":x,
                             "yval":np.exp(-np.power(x-25.,2)/10) + (random.random()-0.5),"yerr":0.05} for x in xr]
 
 datapts_parabolic = [{"curveNumber":1,"xval":x,
@@ -137,7 +137,7 @@ datapts_parabolic = [{"curveNumber":1,"xval":x,
 datapts_linear = [{"curveNumber":1,"xval":x,
                             "yval":2*x - 20 + 50*(random.random()-0.5),"yerr":0.05} for x in xr]
 mymethod4 = "addData"
-myparams4 = {"pointList":datapts_linear}
+myparams4 = {"pointList":datapts_Gaussian}
 mymessagedict4 = {"jsonrpc":"2.0", 
                  "method":mymethod4,
                  "params":myparams4,
@@ -311,7 +311,7 @@ mymessagedict14 = {"jsonrpc":"2.0",
 
 
 
-r1 = json.dumps(MessageDicts["cleardata1"])
+r1 = json.dumps(MessageDicts["generatedData"])
 
 message_encoded = r1.encode("utf-8",errors="ignore")
 message_length = len(message_encoded)

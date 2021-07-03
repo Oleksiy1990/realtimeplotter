@@ -304,93 +304,96 @@ class GeneralFitter1D:
         return True
 
 class PrefitterDialog(QtWidgets.QWidget):
-    def __init__(self, fitmodel_instance):
+    def __init__(self, fitmodel_instance,curvenumber):
         super().__init__()
         self.NUMPOINTS_CURVE = 350
-        self.fitmodel = fitmodel_instance
-
+        self.fitmodel = fitmodel_instance       
+        is_preprocess_good = fitmodel_instance.preprocess_data()
+        if is_preprocess_good:
+            is_prefit_good = fitmodel_instance.do_prefit()
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "__init__"))
+            print("Data preprocessing failed. Apparently something was wrong with the data points sent into the fit model. Not doing prefitting \n")
+            return None
+        if is_prefit_good is False:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "__init__"))
+            print("Prefit failed. Cannot do any further prefitting \n")
+            return None
+            
         # not sure here yet...
         self.preplotdotsymbol = "o"
-        self.preplotcolorpalette = helperfunctions.colorpalette[self.fitmodel.fit_function_number % len(
+        self.preplotcolorpalette = helperfunctions.colorpalette[curvenumber% len(
             helperfunctions.colorpalette)]  # This is just modulo in colors so that if there are too many plots, they start repeating colors
         self.preplotsymbolbrush = pg.mkBrush(self.preplotcolorpalette)
 
         # set window title, layout, and pyqtgraph plotting widget
-        self.setWindowTitle("Pre-fit dialog")
+        self.setWindowTitle("Prefit dialog")
         dialoglayout = QtWidgets.QVBoxLayout()
-        self.graphWidget1 = pg.PlotWidget()
-        self.graphWidget1.setBackground('w')
-        dialoglayout.addWidget(self.graphWidget1)
+        self.prefitGraphWidget = pg.PlotWidget()
+        self.prefitGraphWidget.setBackground('w')
+        dialoglayout.addWidget(self.prefitGraphWidget)
         controlfields_layout = QtWidgets.QGridLayout()
         self.datastring_fields = []
         self.datastring_labels = []
-
         # Here we set up the prefit GUI by filling 
         # out the grid of dictionary names and values for a
         # particular plot
-        for (idx, (key, val)) in enumerate(self.fitmodel.fit_function_paramdict_prefit.items()):
+        for (line_idx,(key, val)) in enumerate(self.fitmodel.start_paramdict.items()):
             label = QtGui.QLabel(key)
             field = QtGui.QLineEdit()
-            field.setText("{:.06f}".format(val))
+            field.setText(str("{:.06f}".format(val)))
             field.textEdited.connect(self.update_paramdict)
             self.datastring_labels.append(label)  # the dictionary labels
             self.datastring_fields.append(field)
-            controlfields_layout.addWidget(label, idx, 0)
-            controlfields_layout.addWidget(field, idx, 1)
+            controlfields_layout.addWidget(label, line_idx, 0)
+            controlfields_layout.addWidget(field, line_idx, 1)
 
         dialoglayout.addLayout(controlfields_layout)
         self.setLayout(dialoglayout)
 
         # datapointsplot stands for just the data 
-        self.datapointsplot = self.graphWidget1.plot(symbol=self.preplotdotsymbol,
+        self.datapointsplot = self.prefitGraphWidget.plot(symbol=self.preplotdotsymbol,
                                                      symbolBrush=self.preplotsymbolbrush,
                                                      pen=pg.mkPen(None))
         self.datapointsplot.setData(self.fitmodel.xvals,
                                     self.fitmodel.yvals)
-        if self.fitmodel.areErrorbarsGiven:
+        if self.fitmodel.errorbars is not None:
             self.errorbars_plot = pg.ErrorBarItem(x=self.fitmodel.xvals, y=self.fitmodel.yvals,
                                                   top=self.fitmodel.errorbars,
                                                   bottom=self.fitmodel.errorbars,
                                                   pen=pg.mkPen(color=self.preplotcolorpalette,
                                                                style=QtCore.Qt.DashLine))
-            self.graphWidget1.addItem(self.errorbars_plot)
+            self.prefitGraphWidget.addItem(self.errorbars_plot)
 
         # curveplot is the plot of the actual curve with whatever
         # prefit parameters are in there at the moment
-        self.plotcurve = self.graphWidget1.plot(pen=pg.mkPen(self.preplotcolorpalette,
+        self.plotcurve = self.prefitGraphWidget.plot(pen=pg.mkPen(self.preplotcolorpalette,
                                                              style=QtCore.Qt.SolidLine))
 
         self.makeplot()
 
     def makeplot(self):
-        if None in list(self.fitmodel.fit_function_paramdict_prefit.values()):
-            pass
-        else:
-            paramlist = list(self.fitmodel.fit_function_paramdict_prefit.values())
-            aXvalsDense = np.linspace(self.fitmodel.xvals[0], self.fitmodel.xvals[-1], self.NUMPOINTS_CURVE)
-            # NOTE! This is not necessarily good, I just assume here that dictionary order does not change. This may be wrong
-            aYvalsDense = self.fitmodel.fit_function_base(paramlist, aXvalsDense)
-            self.plotcurve.clear()
-            self.plotcurve.setData(aXvalsDense, aYvalsDense)
+        paramlist = list(self.fitmodel.start_paramdict.values())
+        aXvalsDense = np.linspace(self.fitmodel.xvals[0], self.fitmodel.xvals[-1], self.NUMPOINTS_CURVE)
+        # NOTE! This is not necessarily good, I just assume here that dictionary order does not change. This may be wrong
+        aYvalsDense = getattr(fitmodels,self.fitmodel.fitfunction_name_string+"_base")(paramlist, aXvalsDense)
+        self.plotcurve.clear()
+        self.plotcurve.setData(aXvalsDense, aYvalsDense)
 
     def update_paramdict(self, atext):
 
         # we go though the list of the data fields and check what 
         # the new values are and set them into the prefit dictionary
         for idx in range(len(self.datastring_labels)):
+            # if we deleted everything from some line, then it should not plot anything and wait until we inserted a valid parameter guess
+            if self.datastring_fields[idx].text().strip() == "":
+                return None
             try:
                 input_float = float(self.datastring_fields[idx].text())
-                self.fitmodel.fit_function_paramdict_prefit[self.datastring_labels[idx].text()] = input_float
+                self.fitmodel.start_paramdict[self.datastring_labels[idx].text()] = input_float
+                self.makeplot()
             except:
-                if (self.datastring_fields[idx].text() == "") or self.datastring_fields[idx].text().isspace():
-                    self.fitmodel.fit_function_paramdict_prefit[self.datastring_labels[idx].text()] = None
-                else:
-                    print(
-                        "Message from Class {:s}: input value {} in Prefit dialog cannot be converted to float. Clearing the value".format(
-                            self.__class__.__name__,
-                            self.datastring_fields[idx].text()))
-        if None in list(self.fitmodel.fit_function_paramdict_prefit.values()):
-            pass
-        else:
-            self.makeplot()
-
+                print(
+                    "Message from Class {:s} function update_paramdict".format(self.__class__.__name__))
+                print("You typed in value {} as one of the parameters. This is not a numeric input, this is not allowed. Clearing the value \n".format(self.datastring_fields[idx].text()))
+                self.datastring_fields[idx].setText("")
