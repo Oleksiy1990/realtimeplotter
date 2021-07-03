@@ -94,6 +94,7 @@ class MainWindow(QtGui.QMainWindow):
     MAX_NUM_CURVES = 50 # This is a large upper limit on the max number of curves that
                         # can be plotted at the same time
     NUMPOINTS_CURVE_DENSE = 350
+    PARAMETERS_doClear = JSONread.doClear_message_keys 
 
     def __init__(self, aTCPIPserver):
 
@@ -180,26 +181,30 @@ class MainWindow(QtGui.QMainWindow):
         setattr(self, self.legend_item_name, self.graphWidget.addLegend())
         mainwindow_layout.addWidget(self.graphWidget)
 
-        # Two buttons right below the plot: Clear plot and clear data
-        self.ClearPlotButton = QtGui.QPushButton("Clear plot")
-        self.ClearDataButton = QtGui.QPushButton("Clear data")
-        self.ClearPlotButton.clicked.connect(partial(self.clear_plot,""))
-        self.ClearDataButton.clicked.connect(partial(self.clear_data,"all"))
+        self.RegisterCurvesButton = QtGui.QPushButton("Reg. cv.")
+        self.RegisterCurvesButton.clicked.connect(self._register_available_curves)
+        self.ClearButton = QtGui.QPushButton("Clear")
+        self.ClearButton.clicked.connect(self._process_clearbutton_call)
+        self.ClearButtonOption = QtGui.QComboBox() # this defines what clearing action will be taken
+        self.ClearButtonTarget = QtGui.QComboBox() # the curve to clear, _register_available_curves adds the curves to it
+        self.ClearButtonTarget.addItem("all") # all must be added here, it is not added via _register_available_curves
+        self.ClearButtonOption.addItems(self.PARAMETERS_doClear)
+        
         
         ClearPlotAndDataBox = QtGui.QHBoxLayout()
-        ClearPlotAndDataBox.addWidget(self.ClearPlotButton)
-        ClearPlotAndDataBox.addWidget(self.ClearDataButton)
-        mainwindow_layout.addLayout(ClearPlotAndDataBox) # so we can keep adding widgets as we go, they will be added below in vertical box layout, because the main layout is defined to be the vertical box layout
+        ClearPlotAndDataBox.addWidget(self.ClearButton)
+        ClearPlotAndDataBox.addWidget(self.ClearButtonOption)
+        ClearPlotAndDataBox.addWidget(self.RegisterCurvesButton)
+        ClearPlotAndDataBox.addWidget(self.ClearButtonTarget)
+        mainwindow_layout.addLayout(ClearPlotAndDataBox) 
+        # Up to now we have added the GUI line required to clear the plots
         
        
         # Next row in the GUI: buttons controls related to making the fit
         self.MakeFitButton = QtGui.QPushButton("Do fit")
         self.PrefitButton = QtGui.QPushButton("Prefit")
-        self.RegisterCurvesButton = QtGui.QPushButton("Reg. cv.")
-        self.RegisterCurvesButton.clicked.connect(self._register_available_curves)
         self.MakeFitButton.clicked.connect(self.process_makefit_button)
-        self.PrefitButton.clicked.connect(self.process_Prefit_button)
-        
+        self.PrefitButton.clicked.connect(self.process_prefit_button)
         self.FitFunctionChoice = QtGui.QComboBox()
         self.PlotNumberChoice = QtGui.QComboBox()
         self.FitFunctionChoice.addItems(self.DEFINED_FITFUNCTIONS)
@@ -207,13 +212,13 @@ class MainWindow(QtGui.QMainWindow):
         MakeFitBoxLayout = QtGui.QHBoxLayout()
         MakeFitBoxLayout.addWidget(self.MakeFitButton)
         MakeFitBoxLayout.addWidget(self.PrefitButton)
-        MakeFitBoxLayout.addWidget(self.RegisterCurvesButton)
+        MakeFitBoxLayout.addWidget(self.RegisterCurvesButton) # for some reason this does not get added
         MakeFitBoxLayout.addWidget(self.FitFunctionChoice)
         MakeFitBoxLayout.addWidget(self.PlotNumberChoice)
         mainwindow_layout.addLayout(MakeFitBoxLayout)
        
         #First we create a layout into which we will put widgets
-        CropBoxLayout =QtGui.QHBoxLayout() 
+        CropBoxLayout = QtGui.QHBoxLayout() 
         #create the widgets themselves, and set their properties
         self.DoCropButton = QtGui.QPushButton("Crop data")
         self.CropLowerLimit = QtGui.QLineEdit()
@@ -263,6 +268,17 @@ class MainWindow(QtGui.QMainWindow):
         self.client_communication_socket = None # This will be the socket to use for sending data to the client
 
     ###### End of __init__()
+
+    def _process_clearbutton_call(self):
+        function_string_name = self.ClearButtonOption.currentText()
+        parameter_string_name = self.ClearButtonTarget.currentText()
+        callable_function = getattr(self,"clear_"+function_string_name)
+        if parameter_string_name == "all":
+            callable_function(parameter_string_name)
+        else:
+            callable_function(int(parameter_string_name))
+
+
     def _register_client_communication_socket(self, socket_arg: socket.socket) -> bool:
         if not isinstance(socket_arg,(socket.socket,type(None))):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "_register_client_communication_socket"))
@@ -307,9 +323,33 @@ class MainWindow(QtGui.QMainWindow):
     # TODO: Get rid of this function and button correctly. They are registered immediately as they come in.
     def _register_available_curves(self) -> None:
         self.PlotNumberChoice.clear()
+        self.ClearButtonTarget.clear()
+        self.ClearButtonTarget.addItem("all")
         for idx in range(self.MAX_NUM_CURVES):
             if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
                 self.PlotNumberChoice.addItem("{:d}".format(idx))        
+                self.ClearButtonTarget.addItem("{:d}".format(idx)) 
+
+    def _generate_fit_dataset(self,a_fitmodel_instance_stringname) -> tuple:
+        """
+        Takes the string name of a fit model instance and generated the 
+        dense points based on evaluating results of the fit
+
+        Returns:
+        a tuple of two numpy arrays, the first are the dense xvals, the 
+        second is the evaluated fit at those xvals
+        """
+        aXvalsDense = np.linspace(getattr(self,a_fitmodel_instance_stringname).xvals[0],
+                getattr(self,a_fitmodel_instance_stringname).xvals[-1],
+                self.NUMPOINTS_CURVE_DENSE)
+        fitresults_list = list(getattr(self,
+                a_fitmodel_instance_stringname).result_paramdict.values())
+        fitfunction_callable = getattr(fitmodels,
+                getattr(self,
+                    a_fitmodel_instance_stringname).fitfunction_name_string+"_base")
+        aYvalsDense = fitfunction_callable(fitresults_list,aXvalsDense)
+        return (aXvalsDense,aYvalsDense)
+
 
     def process_makefit_button(self) -> bool:
 
@@ -318,20 +358,24 @@ class MainWindow(QtGui.QMainWindow):
             self.prefitDialogWindow.close()
 
         current_curve_number = int(self.PlotNumberChoice.currentText())
-        if not hasattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)):
-            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_makefit_button"))
-            print("You put a curve number that is not an integer. This is not allowed")
-            return False
+        # the next is the stringname of the current fit_model in use, this
+        # is then used in conjunction with getattr, setattr, etc.
+        fitmodel_instance_stringname = self.fitmodel_instance_name+"{:d}".format(current_curve_number)
+
+        # this is mostly for manual fitting, because then there is no remote commant sent "set_curve_number". so this needs to be done here
+        if not hasattr(self,fitmodel_instance_stringname):
+            self.set_curve_number(current_curve_number)
+        
         # Now comes the fitting part
         # 1) Create a fitter instance
-        currentFitter = GeneralFitter1D(getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)))
+        currentFitter = GeneralFitter1D(getattr(self,fitmodel_instance_stringname))
         # 2) setup fit
         result_setupfit = currentFitter.setup_fit()
 
         if result_setupfit is True:
             # 3) perform the fit
             result_dofit = currentFitter.do_fit()
-            if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).result_objectivefunction == -1:
+            if getattr(self,fitmodel_instance_stringname).result_objectivefunction == -1:
                 result_regularplot = False
             else:
                 result_regularplot = True
@@ -342,16 +386,7 @@ class MainWindow(QtGui.QMainWindow):
 
         if (result_dofit is True) and (result_regularplot is True):
             # 4) If the fit result is good, according to the fitter message, we want to plot it
-            if getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).is_fit_successful is True:
-                aXvalsDense = np.linspace(getattr(self,
-                        self.fitmodel_instance_name+"{:d}".format(current_curve_number)).xvals[0],
-                        getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).xvals[-1],
-                        self.NUMPOINTS_CURVE_DENSE)
-                fitresults_list = list(getattr(self,
-                        self.fitmodel_instance_name+"{:d}".format(current_curve_number)).result_paramdict.values())
-                fitfunction_callable = getattr(fitmodels,
-                        getattr(self,self.fitmodel_instance_name+"{:d}".format(current_curve_number)).fitfunction_name_string+"_base")
-                aYvalsDense = fitfunction_callable(fitresults_list,aXvalsDense)
+            if getattr(self,fitmodel_instance_stringname).is_fit_successful is True:
                 # Now we remove the original line connecting the points but replot
                 #the points themselves, and then plot the dashed line for the fit
                 #through the same point, in the same color as the points
@@ -385,7 +420,7 @@ class MainWindow(QtGui.QMainWindow):
                     self.graphWidget.plot(symbol=None,
                         pen=getattr(self,"pen{:d}".format(current_curve_number)),
                         symbolBrush = pg.mkBrush(None)))
-                getattr(self,self.fitplot_line_name+"{:d}".format(current_curve_number)).setData(aXvalsDense,aYvalsDense)
+                getattr(self,self.fitplot_line_name+"{:d}".format(current_curve_number)).setData(*self._generate_fit_dataset(fitmodel_instance_stringname))
 
                 #============= Ok by here we should be done with the actual plotting of the fit
 
@@ -437,50 +472,43 @@ class MainWindow(QtGui.QMainWindow):
             return False
 
     # TODO Somehow prefit seems to not accept it when the initial parameter is set to 0. Check that out
-    def process_Prefit_button(self):
-        result_check_settings = self.checkAndReturnDataPrefit()
-        if result_check_settings:
-            # get the current name of the fit function and the curve number to fit
-            #remember that FitFunctionChoice and PlotNumberChoice are the GUI 
-            #QComboBox widgets
-            fitfunction_name = self.FitFunctionChoice.currentText()
-            curve_number = int(self.PlotNumberChoice.currentText())
+    def process_prefit_button(self) -> bool:
+        # get the current name of the fit function and the curve number to fit
+        this_fitfunction_name = self.FitFunctionChoice.currentText()
+        this_curve_number = int(self.PlotNumberChoice.currentText())
+        if not (hasattr(self,self.xaxis_name+"{:d}".format(this_curve_number)) and hasattr(self,self.yaxis_name+"{:d}".format(this_curve_number))):
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_prefit_button"))
+            print("The data for the curve that you are asking to prefit does not exist. You probably deleted it already. Not doing anything \n")
+            return False
 
-            # if the fitmodel_instance already exists, check if the required 
-            #fit function is the same as is in the existing fitmodel_instance.
-            #If not, delete fitmodel_instance and start again
-            #if fitmodel_instance does not exist, then create it
-            if hasattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)):
-                if getattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number)).fitfunction_name_string != fitfunction_name:
-                    print("Message from Class {:s} function process_Prefit_button: you changed the fit function for the curve which you already tried to process in prefit. Erasing all previous prefit parameters".format(self.__class__.__name__))
-                    delattr(self,self.fitmodel_instance_name+"{:d}".format(curve_number))
-                    setattr(self,
-                        self.fitmodel_instance_name+"{:d}".format(curve_number),
-                        Fitmodel(fitfunction_name,curve_number,
-                            *result_check_settings))
-                else:
-                    pass
-            else:
-                setattr(self,
-                        self.fitmodel_instance_name+"{:d}".format(curve_number),
-                    Fitmodel(fitfunction_name,
-                        curve_number,*result_check_settings))
-        else:
-            print("Message from function process_Prefit_button: checkAndReturnDataPrefit function failed, check out its error messages and input data")
-            return None
-       
+
+        # ============= Here we make sure to initialize the fit model or reinitialize it in case the fit function name changed, in which case all parameters are completely different
+        fitmodel_instance_stringname = self.fitmodel_instance_name + "{:d}".format(this_curve_number)
+        if hasattr(self,fitmodel_instance_stringname):
+            if getattr(self,fitmodel_instance_stringname).fitfunction_name_string != this_fitfunction_name:
+                self.set_curve_number(this_curve_number)
+        if not hasattr(self,fitmodel_instance_stringname):
+            self.set_curve_number(this_curve_number)
+        #===================== Done initializing fit model    
+
         # Now we create the actual prefit dialog window (popup) 
         # If prefitDialogWindow does not exist, we have to create it
+        # we feed a Fitmodel instance into the prefitter dialog
         if self.prefitDialogWindow is None: 
             self.prefitDialogWindow = PrefitterDialog(getattr(self,
-                self.fitmodel_instance_name+"{:d}".format(curve_number)))
+                fitmodel_instance_stringname),this_curve_number)
         #otherwise we close and open it again with the correct prefitter
         else:
             self.prefitDialogWindow.close()
             self.prefitDialogWindow = PrefitterDialog(getattr(self,
-                self.fitmodel_instance_name+"{:d}".format(curve_number)))
-        
-        self.prefitDialogWindow.show()
+                fitmodel_instance_stringname),this_curve_number)
+        if self.prefitDialogWindow is not None: 
+            self.prefitDialogWindow.show()
+            return True
+        else:
+            print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "process_prefit_button"))
+            print("Prefit dialog window did not open. This is probably because some data preprocessing failed when it tried to create the prefit dialog window. Not doing anything \n")
+            return False
 
     def process_Crop_button(self):
         try:
@@ -715,6 +743,10 @@ class MainWindow(QtGui.QMainWindow):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_everything"))
             print("You supplied something other than a string as the function argument. Not doing anything \n")
             return False
+        # this is now to be able to receive the "all" option from the 
+        # GUI without causing errors
+        if dummyargument == "all": 
+            dummyargument = ""
         if len(dummyargument.strip()) > 0: 
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "clear_everything"))
             print("You supplied a non-empty sring as the function argument. Not doing anything. You must supply an empty string for this to work \n")
@@ -849,7 +881,10 @@ class MainWindow(QtGui.QMainWindow):
         if clear_replot_arg == "all":
             for idx in range(self.MAX_NUM_CURVES):
                 if hasattr(self,self.plot_line_name+"{:d}".format(idx)):
-                    getattr(self,self.plot_line_name+"{:d}".format(idx)).setData(x=getattr(self,self.xaxis_name+"{:d}".format(idx)),y=getattr(self,self.yaxis_name+"{:d}".format(idx)))
+                    getattr(self,self.plot_line_name+"{:d}".format(idx)).setData(*self.convert_to_numpy(getattr(self,self.xaxis_name+"{:d}".format(idx)),getattr(self,self.yaxis_name+"{:d}".format(idx))))
+                if hasattr(self,self.fitplot_line_name+"{:d}".format(idx)):
+                    getattr(self,self.fitplot_line_name+"{:d}".format(idx)).setData(*self._generate_fit_dataset(fitmodel_instance_name+"{:d}".format(idx)))
+                if hasattr(self,self.errorbar_item_name+"{:d}".format(idx)):
                     getattr(self,self.errorbar_item_name+"{:d}".format(idx)).setData(pen=getattr(self,self.errorbar_pen_name+"{:d}".format(idx))) 
 
             return True
@@ -860,13 +895,16 @@ class MainWindow(QtGui.QMainWindow):
                 "You supplied something other than all or integer into the function. This command cannot be performed \n")
             return False
         
-        # if we made it to here, this means that the clear_plot_arg is an integer
+        # if we made it to here, this means that the clear_replot_arg is an integer
         if hasattr(self,self.plot_line_name+"{:d}".format(clear_replot_arg)):
-            getattr(self,self.plot_line_name+"{:d}".format(clear_replot_arg)).setData(x=getattr(self.self.xaxis_name+"{:d}".format(clear_replot_arg)),y=getattr(self.self.yaxis_name+"{:d}".format(clear_replot_arg)))
-            getattr(self,self.errorbar_item_name+"{:d}".format(clear_replot_arg)).setData(pen=getattr(self,self.errorbar_pen_name+"{:d}".format(clear_replot_arg))) 
+            getattr(self,self.plot_line_name+"{:d}".format(clear_replot_arg)).setData(*self.convert_to_numpy(getattr(self,self.xaxis_name+"{:d}".format(clear_replot_arg)),getattr(self,self.yaxis_name+"{:d}".format(clear_replot_arg))))
         else:
             print("Warning from Class {:s} function {:s}".format(self.__class__.__name__, "clear_replot"))
             print("You requested to clear a non-existing plot. Doing nothing \n")
+        if hasattr(self,self.fitplot_line_name+"{:d}".format(clear_replot_arg)):
+            getattr(self,self.fitplot_line_name+"{:d}".format(clear_replot_arg)).setData(*self._generate_fit_dataset(fitmodel_instance_name+"{:d}".format(clear_replot_arg)))
+        if hasattr(self,self.errorbar_item_name+"{:d}".format(clear_replot_arg)):
+            getattr(self,self.errorbar_item_name+"{:d}".format(clear_replot_arg)).setData(pen=getattr(self,self.errorbar_pen_name+"{:d}".format(clear_replot_arg))) 
         
         return True
 
@@ -1225,7 +1263,7 @@ class MainWindow(QtGui.QMainWindow):
         # make sure that croplimits is a list
         if not isinstance(croplimits_arg, list):
             print("Message from Class {:s} function {:s}".format(self.__class__.__name__, "set_crop_limits"))
-            print("You put something other than a list as crop limits. This is not allowed, not setting any crop limits")
+            print("You put something other than a list as crop limits. This is not allowed, not setting any crop limits \n")
             return False
         # Check if the list contains two elements and if they are numbers
 

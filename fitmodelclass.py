@@ -33,14 +33,6 @@ class Fitmodel:
         self.monte_carlo_inputs = {}
         self.monte_carlo_startparams = []
 
-        # this gets automatically loaded in order to make it available
-        self.start_paramdict = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
-        self.start_bounds_paramdict = getattr(fitmodels, self.fitfunction_name_string + "_paramdict")()
-
-        # this loads the dictionaries again, but now for storing the fit parameters
-        self.result_paramdict = getattr(fitmodels, self.fitfunction_name_string + "_paramdict")()
-        # the next one is for fit uncertainties, but it will not be used for now
-        #self.result_bounds_paramdict = getattr(fitmodels, self.fitfunction_name_string + "_paramdict")()
         self.result_fulloutput = None
         self.result_objectivefunction = -1
 
@@ -55,6 +47,17 @@ class Fitmodel:
         self.xvals = None
         self.yvals = None
         self.errorbars = None
+
+        self.initialize_paramdicts()
+
+    def initialize_paramdicts(self) -> bool:
+        """
+        Use the _paramdict() function to initialize the parameter dictionaries with appropriate keys, but all values set to None
+        """
+        self.start_paramdict = getattr(fitmodels,self.fitfunction_name_string+"_paramdict")()
+        self.start_bounds_paramdict = getattr(fitmodels, self.fitfunction_name_string + "_paramdict")()
+        self.result_paramdict = getattr(fitmodels, self.fitfunction_name_string + "_paramdict")()
+        return True
 
     def preprocess_data(self) -> bool:
         """
