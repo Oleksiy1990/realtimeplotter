@@ -176,7 +176,8 @@ class MainWindow(QtGui.QMainWindow):
         #graphWidget (instance of pyqtgraph.PlotWidget() )
         self.graphWidget = pg.PlotWidget() 
         self.graphWidget.setBackground('w')
-
+        self.graphWidget.enableAutoRange(axis="xy",enable=True,x=True,y=True)
+        self.graphWidget.autoRange()
         # we set the legend here. The labels have to be set in the definitions of curves later in the code
         setattr(self, self.legend_item_name, self.graphWidget.addLegend())
         mainwindow_layout.addWidget(self.graphWidget)
@@ -753,6 +754,7 @@ class MainWindow(QtGui.QMainWindow):
             return False
         self.clear_data("all")
         self.clear_config("all")
+        self.graphWidget.clear()
         return True
 
     def clear_data(self,clear_data_arg: Union[int,str]) -> bool:
@@ -786,6 +788,7 @@ class MainWindow(QtGui.QMainWindow):
             for idx in range(self.MAX_NUM_CURVES):
                 self._clear_curve_data(idx)
             self._register_available_curves() # This has to be called anytime curves are deleted
+            #self.graphWidget.autoRange() # TODO Not sure if this works
             return True
 
         if not isinstance(clear_data_arg,int):
