@@ -11,7 +11,7 @@
 %%% Examples of Article customizations
 % These packages are optional, depending whether you want the features they provide.
 % See the LaTeX Companion or other references for full information.
-
+\usepackage{comment}
 %%% PAGE DIMENSIONS
 \usepackage{geometry} % to change the page dimensions
 \geometry{a4paper} % or letterpaper (US) or a5paper or....
@@ -97,7 +97,7 @@ All commands must be sent as character strings in \textbf{utf-8} encoding (if th
 
 {\fontfamily{pcr}\selectfont \{ ``jsonrpc'': ``2.0'', ``method'': <string>, ``params'': <dictionary>, ``id'': <integer> \}}
 
-where the dictionary corresponding to ``params'' is a data structure corresponding to the python dictionary and has the format \{<string>:<any>,...\}, so it is a list of comma-separated pairs, of arbitrary length, where inside each pair itself the entries are separated by a colon. The first element of each pair is a string (that's known as the \textit{key}), and the second element can be in principle any datatype, including a dictionary itself (that's known as \textit{value}). Note the curly braces around: they must be there. 
+where the dictionary corresponding to ``params'' is a data structure corresponding to the python dictionary and has the format \{<string>:<any>,...\}: it is a list of comma-separated pairs, of arbitrary length, where inside each pair itself the entries are separated by a colon. The first element of each pair is a string (that's known as the \textit{key}), and the second element can be in principle any datatype, including a dictionary itself (that's known as \textit{value}). Note the curly braces around: they must be there. 
 
 For those who program in Python and understand the lingo: the value corresponding ``params'' has the standard form of a Python dictionary, with all keys being strings. For those who do not program in Python and do not understand the lingo: make sure to build this dictionary exactly in the format described above. 
 
@@ -108,13 +108,15 @@ For those who program in Python and understand the lingo: the value correspondin
 
 As of now, the implemented methods are 
 \begin{itemize}
-\item {\fontspec{sourcecodepro} {''}doClear{''}} This will clear the information from the screen and from the server memory. 
-\item {\fontspec{sourcecodepro} {''}setConfig{''}} This will send configuration parameters to the plotter and fitter, such as axis labels, plot label, legend labels, etc
-\item {\fontspec{sourcecodepro} {''}addData{''}} This send data point by point to the plotter, or alternatively (later) lists of data points at once. Once the plotter receives each data point, it immediately puts it on the screen
+\item {\fontspec{sourcecodepro} {''}doClear{''}} This will clear the information from the screen and/or from the server memory. 
+\item {\fontspec{sourcecodepro} {''}setConfig{''}} This will send configuration parameters to the plotter and fitter, which are axis labels, plot label, legend labels
+\item {\fontspec{sourcecodepro} {''}addData{''}} This send data point by point to the plotter, or alternatively lists of data points at once. Once the plotter receives each data point, it immediately puts it on the screen
 \item {\fontspec{sourcecodepro} {''}doFit{''}} This will perform the fit to (some of) the data that has been previously sent to the server. Cropping is also done here, because cropping is something that's used only for fitting. 
 \item {\fontspec{sourcecodepro} {''}getFitResult{''}} This tells the plotter which fit to send back to the client. 
 \item {\fontspec{sourcecodepro} {''}getConfig{''}} Not implemented yet, but envisioned to get configurations back to the server
 \end{itemize}
+
+\textbf{NOTE}: Not sure if the following has been implemented correctly already
 
 whenever the method is anything other than ``getFitResult'' or ``getConfig'', the server send to the client a JSON-RPC2.0 string of the following form: 
 
@@ -136,60 +138,83 @@ As we have seen, ``params'' in the request must be sent as dictionaries, so in t
 
 \begin{tcolorbox}[breakable,title=Sending ``params'' to the server]
 
-We list the parameters with an explanation of the possible values (the parameter literal is before the colon, the possible values are after the colon, explanation in parentheses
+We list the parameters with an explanation of the possible values to go with each method. The parameter literal is shown before the colon, the possible values are after the colon.
 
 \textbf{Case 1: ``method'' is ``doClear''}
 \begin{itemize}
-\item ``clearData'' : ``all'' (This clears everything, so data, fits, axis labels, etc. )
-\item ``clearData'': <int> (This clears the curve, data and corresponding fit if available, specified by the integer)
-\item ``clearConfig'': ``all'' (This clears the axis labels and the title)
+\item ``everything'' : ``'' (empty string) 
 
-For later implementation: clearing individual curves, clearing individual labels, etc.
+This clears everything, so data, fits, axis labels, etc. This is also the only function which will make the window 
+autoscale appropriately for the next plot. Use it between sending completely different sets of data
+
+\item ``config'': <str,``all''> 
+
+``all'' will clear all given configurations, and if one gives for example ``plotTitle'' as argument, one gets rid
+of the title, ``axisLabels'' gets rid of the labels
+
+\item ``data'': <int,``all''> 
+
+Either deletes all data associated with the curve given by int, or associated with all curves
+
+\item ``plot'': <int,``all''>
+
+Either deletes the plot associated with the curve given by int, or associated with all curves. 
+Note that in this case the data are not cleared, only the visual on the screen
+
+\item ``replot'': <int,``all''>
+
+If the clear-plot call has been made before, then this will replot the curve, so bring the visual back on the screen
+
 \end{itemize}
 \textbf{Case 2: ``method'' is ``setConfig''}
 \begin{itemize}
-\item ``setAxisLabels'' : <list(<string>,<string>)> (first one in the list is x-axis label, second one is y-axis label)
-\item ``setPlotTitle'' : <string>
-\item ``setPlotLegend'' : <dictionary(<string>:<string>,...)> (The first string in the dictionary has form ``curve1'' for example, etc. which just defines the curve to use, the second string will be the label that we want to put in the legend for that curve)
+
+\item ``axisLabels'' : <list(<string>,<string>)> 
+
+First one in the list is x-axis label, second one is y-axis label
+
+\item ``plotTitle'' : <string>
+
+\item ``plotLegend'' : <dictionary(<string>:<string>,...)> 
+
+The first string in the dictionary has form ``curve1'' for example, etc. which just defines the curve to use; 
+the second string will be the label that we want to put in the legend for that curve)
+
 \end{itemize}
-	... (more commands can be added later)
 
 \textbf{Case 3: ``method'' is ``addData''}
 \begin{itemize}
-\item Adding a single data point (so a point to a single curve)
+\item ``dataPoint'' : <dictionary>. 
 
-``dataPoint'' : <dictionary>. 
-
+This will add a single data point (a point to a single curve).
 The dictionary that goes with the dataPoint have the form
 
 {\fontspec{sourcecodepro} \{ {''}curveNumber{''}:<integer>, {''}xval{''}:<float,int>, {''}yval{''}:<float,int>, {''}yerr{''}:<float,int>, {''}xerr{''}:<float,int> \}}, 
 
-and in this case the options ``xerr'' and ``yerr'' are not required, they are optional. This will 
+and in this case ``xerr'' and ``yerr'' are optional. This will
 add a single data point to the curve that has been specified.
 
-\item Adding data points to multiple curves at the same time
+\item  ``pointList'' : <list(<dictionary>,...)>. 
 
-
- ``pointList'' : <list(<dictionary>,...)>. 
-
-and each dictionary has exactly the same format as in the item above. 
+This will add multiple data points in a single communication run.
+It's as many data points as the dictionaries in the list, and
+each dictionary has exactly the same format as in the item above. 
 The list is specified by using these symbols before and after:
 
 {\fontspec{sourcecodepro} $[ ~~~ ]$ }
 
 so it's formatted as a standard Python list.
 
-This will simply multiple points (to different curves) 
-in the same round of JSON-RPC2.0 communication. 
-
-Notice that this list is parsed directly in the JSONinterpreter.py, so the main program gets directly a list of commands corresponding to ``dataPoint''. 
+\textbf{NOTE}: this list is parsed directly in the JSONinterpreter.py, so the main program gets directly a list of commands corresponding to ``dataPoint''. 
 
 \end{itemize}
 
-(this can be modified for adding points to curves, but the logic of it being a dictionary will stay the same)
 
 \textbf{Case 4: ``method'' is ``doFit''}
+
+
 \begin{itemize}
+
 \item ``fitFunction'': <str> (Name of the fitting function to be used in case ``performFitting'' is called afterwards. This name must be defined in fitmodels.py)
 
 \item ``curveNumber'': <int> (The curve that will be processed in this particular call iteration of doFit routines)
@@ -206,18 +231,16 @@ by the automatic parameter estimation routine (which, OK, could be good or bad).
 
 \item ``startingParametersLimits'' : <dictionary> (This is optional, this will tell the fitter the limits of parameter search. If one doesn't provide this, they will be determined by the automatic estimation routines) 
 
-{\fontspec{sourcecodepro} \{ {''}frequency{''}:<list>(<float>,<float>), {''}center{''}:list(<float>,<float>),...\}}, 
+{\fontspec{sourcecodepro} \{ {''}frequency{''}:<list>(<float>,<float>), {''}center{''}:list(<float>,<float>),...\} }, 
 one must of course use the same names for fit parameters, but then after the colon one must provide the lower and upper limit for each fit parameter. 
 It is not required to provide the limits for each parameter, however if one does provide limits, one must provide both lower and upper limits. 
 One \textbf{cannot} simply leave one limit empty.
 
 \item ``cropLimits'' : <list(<float or int, -inf>,<float or int,inf>)> (This will crop the data before sending it to the fitter. 
-This item is optional, if not provided, all data for the given curve will be used.
-If one wants a one-sided limit, then the other side must be specified as -inf or inf)
+This item is optional, if not provided, all data for the given curve will be used. If one wants a one-sided limit, then the other side must be specified as -inf or inf)
 
-\item ``fitMethod'' : <str> (This is the name of the fit method from the scipy.optimize library. Currently we have ``minimize'', ``least_squares'', ``basinhopping'', ``differential_evolution'', ``shgo'', ``dual_annealing''. Brute force is not implemented)
-
-If not provided, it will default to ``least_squares''.
+\item ``fitMethod'' : <str> (This is the name of the fit method from the scipy.optimize library. Currently we have ``minimize'', ``least\_squares'', ``basinhopping'', ``differential\_evolution'', ``shgo'', ``dual\_annealing''. Brute force is not implemented)
+If not provided, it will default to ``least\_squares''.
 
 \item ``fitterOptions'': <dict> (The dictionary is passed directly to the scipy.optimize method. The function will not check if the given keyword arguments make sense for the optimization algorithm, that is up to the user)
 
@@ -226,6 +249,7 @@ If not provided, it will default to ``least_squares''.
 \item ``performFitting'': <str> (This parameter asks the program to do the fit. The value must be an empty string, ``'', and it is ignored. It is only there for consistency with all other parameters)
 
 \end{itemize}
+
 
 \textbf{Important note:} All string on the left of the colon (so things like ``clearData'', ``axisLabels'', ``plotTitle'', so on, must consist of a word starting with a lowercase letter, followed by one or more words starting with an uppercase letter, without spaces, so a possible dictionary to go with params could have the form like {\fontspec{sourcecodepro} \{ {''}firstSecond{''}: <any> \}}. This is crucial. Inside the program, it does string parsing by detecting the locations of the capital letters, and then it calls the corresponding functions, which have exactly the same name but with no capital letter and with an underscore separator. So the function called when parameter ``firstSecond'' will be called ``first\_second''. See Section~\ref{basicprinciples} for a more detailed explanation of the structure.  
 
@@ -243,6 +267,7 @@ If not provided, it will default to ``least_squares''.
 
  
 
+%=================== The rest are probably some old instructions that are not relevant anymore
 
 \begin{comment}
 
