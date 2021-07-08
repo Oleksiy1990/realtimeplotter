@@ -24,3 +24,5 @@ __pycache__/
 
 # Ignore test data files
 testdata/
+autocalibtestdata
+old/
