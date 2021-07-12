@@ -6,7 +6,6 @@ Created on Fri Aug 21 12:31:46 2020
 """
 import socket 
 from threading import Thread, Lock
-from interpreter import message_interpreter_twoway
 from functools import partial
 from helperfunctions import create_JSONRPC_errormessage, send_TCPIP_message
 

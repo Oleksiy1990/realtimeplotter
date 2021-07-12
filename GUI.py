@@ -94,7 +94,10 @@ class MainWindow(QtGui.QMainWindow):
     MAX_NUM_CURVES = 50 # This is a large upper limit on the max number of curves that
                         # can be plotted at the same time
     NUMPOINTS_CURVE_DENSE = 350
-    PARAMETERS_doClear = JSONread.doClear_message_keys 
+    PARAMETERS_doClear = JSONread.doClear_message_keys # This may seem 
+    # strange, but it's done here not for checking whether 
+    # parameters are correct, but rather to put these doClear options
+    # on the GUI
 
     def __init__(self, aTCPIPserver):
 
@@ -157,8 +160,6 @@ class MainWindow(QtGui.QMainWindow):
 
         self.legend_label_list = [] # processed in self._create_plotline
         self.legend_label_dict = {}
-
-        #self.myJSONread = JSONread()
 
         # This is the number of datasets in the current state of the class instance
         self.num_datasets = 0

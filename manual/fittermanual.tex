@@ -71,10 +71,20 @@
 \begin{itemize}
 	\item File and folder names are given in the following font {\fontspec{QTCascadetype} myfavoritefile.py} 
 	\item Angled brackets with a datatype inside, so like <integer> mean that the user must provide one instance of the corresponding data type. It is possible that one has to provide lists, in which case the data type of the entries in the list will also be provided in angles brackets, so say a list of two strings would be <list(<string>,<string>)>. If there are several data types possible (which should not happen too much), they will be separated by a comma (so say <integer, string>); do NOT interpret this as a list of two entries, this is integer OR string, one set of single brackets means only one instance. If we don't want to specify the datatype, we will use the word ``any'', and we will use ... to denote an undefined number; for example, a list of integers of arbitrary length will be given as <list(<integer>,...)>
-	\item Three
+	\item Class names and other examples of source code are given in {\fontspec{sourcecodepro} this font}: 
 \end{itemize}
 
 \section{Basic principles, design philosophy, and governing ideas} \label{basicprinciples}
+
+\subsection{Communication: JSON-RPC 2.0 format, JSONread class}
+
+All communications to the server and back are sent via JSON-RPC interface. The file that that handles JSON-RPC format details is {\fontspec{QTCascadetype} JSONinterpreter.py}, and it defines the main class {\fontspec{sourcecodepro} JSONread}, which takes care of checking whether the message complies with JSON-RPC 2.0 format, and very importantly checking whether the message received has meaning inside this software package, so whether the parameters included in the JSON message can be interpreted by the fitter and plotter server. For this purpose, there are class attributes defined, like {\fontspec{sourcecodepro} method\_keys, doClear\_message\_keys}, etc. This should be helpful to make the program \textbf{extensible} if necessary: One simply adds some more of these class attributes as necessary, or alternatively one extends the lists for the attributes with new entries.  
+
+Then there's a defined function to handle every legal method given in the JSON-RPC message. It works like this: if the method is ``doFit'', for example, then the member function of class {\fontspec{sourcecodepro} JSONread} is called {\fontspec{sourcecodepro} \_\_parse\_doFit\_message()}, for ``addData'' method we have {\fontspec{sourcecodepro} \_\_parse\_addData\_message()} function, so it's always like {\fontspec{sourcecodepro} \_\_parse\_<methodvalue>\_message} All these helper functions are meant to be private to the class, and they are called by the {\fontspec{sourcecodepro} parse\_JSON\_message()} from the same class. Each of these functions takes as its argument the dictionary that gets parsed from the incoming JSON-RPC message. \textbf{Important:} each of these helper functions outputs a Python list of tuples (can be of any nonzero length); each tuple has exactly two entries, the first is a string, the second is in principle any data type. The first entry in the tuple is thus the string name of the function that will be called downstream in the program. The second entry is the data that will be passed to that function. I think that this structure makes for a very clean and uniform interface, and facilitates extensibility. 
+
+{\fontspec{sourcecodepro} parse\_JSON\_message()} is the only public function from this class. It takes the the JSON previously converted into a string by the utilities of the standard Python {\fontspec{sourcecodepro} json} package, and first uses {\fontspec{sourcecodepro} \_\_check\_JSON()} to see if this is a valid JSON-RPC 2.0 string, and if it is, then this message is converted into a Python dictionary and the ``method'' entry is legal in this program, this dictionary is fed into one of the helper functions described in the paragraph above. \textbf{Important point:} those helper functions are not called as one would call normal functions with their names, but rather the standard Python {\fontspec{sourcecodepro} getattr()} function is used very extensively in the program. This allows us to use strings, and all string formatting capabilities, to cleanly and uniformly do in our code whatever we want, without defining multiple copy-pasting multiple variable names at different places in the code. For example, here, once the class variable {\fontspec{sourcecodepro} method\_keys} has been defined for {\fontspec{sourcecodepro} JSONread} class, the strings that come in via JSON-RPC can be checked against the contents of that variable, and then functions can directly be called based on those strings. Finally, this function returns back from came out of one of those helper functions. 
+
+Right now, anytime the function {\fontspec{sourcecodepro} interpret\_message()} is called in {\fontspec{QTCascadetype} GUI.py}, we make an instance of {\fontspec{sourcecodepro} JSONread} class and pass the message to it. Maybe a better idea would be to create one instance of this class and then keep calling the function {\fontspec{sourcecodepro} parse\_JSON\_message()} from it, always with the appropriate message, because that's fundamentally the only thing it does.
 
 \section{Client-server structure}
 
@@ -212,12 +222,15 @@ so it's formatted as a standard Python list.
 
 \textbf{Case 4: ``method'' is ``doFit''}
 
-
 \begin{itemize}
 
-\item ``fitFunction'': <str> (Name of the fitting function to be used in case ``performFitting'' is called afterwards. This name must be defined in fitmodels.py)
+\item ``fitFunction'': <str> 
 
-\item ``curveNumber'': <int> (The curve that will be processed in this particular call iteration of doFit routines)
+Name of the fitting function to be used in case ``performFitting'' is called afterwards. This name must be defined in  {\fontspec{QTCascadetype} fitmodels.py}. The availble fit functions are listed, together with the parameters, in \ref{AvailableFitFunctions}
+
+\item ``curveNumber'': <int> 
+
+The curve number that will be processed in this particular call iteration of doFit routines.
 
 \item ``startingParameters'' : <dictionary>
 
@@ -229,39 +242,66 @@ of the variables are they are defined in the fit model. This depends of course o
 Whatever parameters from the fit model are not specified will be handled 
 by the automatic parameter estimation routine (which, OK, could be good or bad). This parameter is in principle optional, so one can not specify it at all, in which case all starting parameters will be handled by the automatic initial parameter estimation routine.
 
-\item ``startingParametersLimits'' : <dictionary> (This is optional, this will tell the fitter the limits of parameter search. If one doesn't provide this, they will be determined by the automatic estimation routines) 
+\item ``startingParametersLimits'' : <dictionary> 
 
-{\fontspec{sourcecodepro} \{ {''}frequency{''}:<list>(<float>,<float>), {''}center{''}:list(<float>,<float>),...\} }, 
-one must of course use the same names for fit parameters, but then after the colon one must provide the lower and upper limit for each fit parameter. 
-It is not required to provide the limits for each parameter, however if one does provide limits, one must provide both lower and upper limits. 
-One \textbf{cannot} simply leave one limit empty.
+This is optional, this will tell the fitter the limits of parameter search. If one doesn't provide this, they will be determined by the automatic estimation routines. The dictionary must come in a form very similar to startingParameters, but the value is a 2-entry list, so it will be like this: 
+{\fontspec{sourcecodepro} \{ {''}frequency{''}:<list>(<float>,<float>), {''}center{''}:list(<float>,<float>),...\} } . 
+It is not required to provide the limits for each parameter, however if one does provide limits, one must provide both lower (on the left) and upper (on the right) limits. One \textbf{cannot} simply leave one limit empty.
 
-\item ``cropLimits'' : <list(<float or int, -inf>,<float or int,inf>)> (This will crop the data before sending it to the fitter. 
-This item is optional, if not provided, all data for the given curve will be used. If one wants a one-sided limit, then the other side must be specified as -inf or inf)
+\item ``cropLimits'' : <list(<float or int, ``-inf''>,<float or int,``inf''>)> 
 
-\item ``fitMethod'' : <str> (This is the name of the fit method from the scipy.optimize library. Currently we have ``minimize'', ``least\_squares'', ``basinhopping'', ``differential\_evolution'', ``shgo'', ``dual\_annealing''. Brute force is not implemented)
-If not provided, it will default to ``least\_squares''.
+This will crop the data before sending it to the fitter. 
+This item is optional, if not provided, all data for the given curve will be used. If one wants a one-sided limit, then the other side must be specified as ``-inf'' or ``inf''
 
-\item ``fitterOptions'': <dict> (The dictionary is passed directly to the scipy.optimize method. The function will not check if the given keyword arguments make sense for the optimization algorithm, that is up to the user)
+\item ``fitMethod'' : <str> 
 
-\item ``monteCarloRuns'' : <dict> (The key-value pairs in this dictionary have to be of the form ``string'':<int>, where the string is exactly the name of the parameter for which the tried have to be done between the min and max parameter bounds values, and int refers to how many random points have to be taken)
+This is the name of the fit method from the scipy.optimize library. Currently we have ``minimize'', ``least\_squares'', ``basinhopping'', ``differential\_evolution'', ``shgo'', ``dual\_annealing''. Brute force is not implemented. If fit method is not provided, it will default to ``least\_squares''.
 
-\item ``performFitting'': <str> (This parameter asks the program to do the fit. The value must be an empty string, ``'', and it is ignored. It is only there for consistency with all other parameters)
+In case ``fitFunction'' is ``curvepeak'', then this option must be either ``findmax'' or ``findmin''. 
+
+\item ``fitterOptions'': <dict> 
+
+The dictionary is passed directly to the scipy.optimize method. The function will not check if the given keyword arguments make sense for the optimization algorithm, that is up to the user.
+
+\item ``monteCarloRuns'' : <dict> 
+
+The key-value pairs in this dictionary have to be of the form ``string'':<int>, where the string is exactly the name of the parameter for which the tried have to be done between the min and max parameter bounds values, and int refers to how many random points have to be taken. 
+
+\textit{Warning:} Monte Carlo procedures are not yet implemented very well. One has to check this, so that they work when necessary, and don't crash the program when they are not implemented for some options
+
+
+\item ``performFitting'': <str> 
+
+This parameter asks the program to do the fit. The value must \textbf{always} be an empty string, ``'', and it is ignored. It is only there for consistency with all other parameters
 
 \end{itemize}
 
 
-\textbf{Important note:} All string on the left of the colon (so things like ``clearData'', ``axisLabels'', ``plotTitle'', so on, must consist of a word starting with a lowercase letter, followed by one or more words starting with an uppercase letter, without spaces, so a possible dictionary to go with params could have the form like {\fontspec{sourcecodepro} \{ {''}firstSecond{''}: <any> \}}. This is crucial. Inside the program, it does string parsing by detecting the locations of the capital letters, and then it calls the corresponding functions, which have exactly the same name but with no capital letter and with an underscore separator. So the function called when parameter ``firstSecond'' will be called ``first\_second''. See Section~\ref{basicprinciples} for a more detailed explanation of the structure.  
+\textbf{Important note:} Any string on the left of the colon (so the dictionary keys ``clearData'', ``axisLabels'', ``plotTitle'', etc, must consist of a word starting with a lowercase letter, followed by one or more words starting with an uppercase letter, without spaces. Inside, the program does string parsing by detecting the locations of the capital letters, and then it calls the corresponding functions, which have exactly the same name but with no capital letter and with underscore separators between the words. So the function called when parameter ``clearData'' is given will be ``first\_second()''. See Section~\ref{basicprinciples} for a more detailed explanation of the structure.  
 
 \textbf{Case 5: ``method'' is ``getFitResult''}
 
-!!! Manual not finished yet in this part
-
 \begin{itemize}
-\item ``curveNumber'' : <integer> (This will simply return the fit result for the chosen curve)
+\item ``curveNumber'' : <integer>
+
+This will send back a JSON-RPC-formatted response, with the result being a dictionary with keys being the fit parameters and values being the fitted values. 
+
+\textbf{NOTE:} This does not yet send the fit confidence intervals, and also it is not quite sure how the fit errors are treated. That has to be yet taken care of. 
+
+
 \end{itemize}
 
+\textbf{Case 6: ``method'' is ``getConfig''}
+
+\begin{itemize}
+\item None
+\end{itemize}
+
+This option is not implemented yet 
+
 \end{tcolorbox}
+
+\subsection{Available fit functions and names of fit parameters} \label{AvailableFitFunctions}
 
 
 
