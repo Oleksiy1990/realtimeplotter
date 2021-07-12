@@ -194,17 +194,19 @@ class GeneralFitter1D:
             optimization_output.success = True
             return optimization_output
         elif self.fitmodel_input.minimization_method_str == "findmin":
-            # make a copy so that we can go about deleting the min value to find the next
-            # min and so on
-            peaks_output = []
+            # make a copy so that we can go about deleting the max value to find the next
+            # max and so on
+            peaks_xvals = []
+            peaks_yvals = []
             data_array_copy = self.fitmodel_input.yvals.copy()
-            # find min, then replace that point with the average, find the next min 
+            # find max, then replace that point with the average, find the next max 
             # and keep going until found as many maxima as requested
             for peak_num in range(self.fitmodel_input.start_paramdict["numpeaks"]):
                 peakval_y = np.nanmin(data_array_copy)
-                peakcoord = np.argmax(data_array_copy)
+                peakcoord = np.argmin(data_array_copy)
                 peakval_x = self.fitmodel_input.xvals[peakcoord]
-                peaks_output.append((peakval_x,peakval_y))
+                peaks_xvals.append(peakval_x)
+                peaks_yvals.append(peakval_y)
                 data_array_copy[peakcoord] = np.mean(data_array_copy)
             # we now have to build the optimization_output object that will look similar to what it looks like for regular fits
             param_dict_length = len(self.fitmodel_input.start_paramdict)
